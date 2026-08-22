@@ -10,6 +10,7 @@ import {
   updateOpportunityDetails,
   createTask,
   toggleTask,
+  exportOpportunitiesCsv,
 } from '@/lib/opportunities-api';
 import type {
   OpportunityRecord,
@@ -55,6 +56,7 @@ export default function OpportunitiesPage() {
   const [detail, setDetail] = useState<OpportunityDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // Filters
   const [stageFilter, setStageFilter] = useState('');
@@ -109,6 +111,29 @@ export default function OpportunitiesPage() {
   useEffect(() => {
     loadOpportunities();
   }, [loadOpportunities]);
+
+  const handleExport = useCallback(async () => {
+    if (opportunities.length === 0) return;
+    setExporting(true);
+    try {
+      const ids = opportunities.map((o) => o.id);
+      const result = await exportOpportunitiesCsv(ids);
+      const blob = new Blob([result.csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = result.filename;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export failed:', err);
+    } finally {
+      setExporting(false);
+    }
+  }, [opportunities]);
 
   useEffect(() => {
     if (selectedId) {
@@ -321,22 +346,40 @@ export default function OpportunitiesPage() {
             )}
           </div>
         </div>
-        <a
-          href="/"
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#3b82f6',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 600,
-            textDecoration: 'none',
-            cursor: 'pointer',
-          }}
-        >
-          + Add Opportunity
-        </a>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            onClick={handleExport}
+            disabled={exporting || opportunities.length === 0}
+            style={{
+              padding: '8px 16px',
+              border: '1px solid #d1d5db',
+              borderRadius: 6,
+              fontSize: 13,
+              fontWeight: 600,
+              backgroundColor: exporting ? '#f3f4f6' : '#ffffff',
+              color: exporting || opportunities.length === 0 ? '#9ca3af' : '#374151',
+              cursor: exporting || opportunities.length === 0 ? 'default' : 'pointer',
+            }}
+          >
+            {exporting ? 'Exporting...' : 'Export CSV'}
+          </button>
+          <a
+            href="/"
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#3b82f6',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: 6,
+              fontSize: 13,
+              fontWeight: 600,
+              textDecoration: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            + Add Opportunity
+          </a>
+        </div>
       </div>
 
       {/* Stage summary badges */}

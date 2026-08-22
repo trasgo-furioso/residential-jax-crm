@@ -188,3 +188,13 @@ export async function createOutreach(data: {
 }): Promise<OutreachRecord> {
   return trpcMutate<OutreachRecord>('outreach.create', data);
 }
+
+// ── Export API functions ─────────────────────────────────────────────────
+
+export async function exportOpportunitiesCsv(
+  opportunity_ids: string[],
+): Promise<{ csv: string; filename: string }> {
+  return trpcMutate<{ csv: string; filename: string }>('export.exportOpportunities', {
+    opportunity_ids,
+  });
+}

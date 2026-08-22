@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import NotificationBell from '@/components/notifications/NotificationBell';
+import AgentChatPanel from '@/components/agent/AgentChatPanel';
 
 export const metadata: Metadata = {
   title: 'Residential Property Acquisition CRM',
@@ -10,6 +11,12 @@ const navItems = [
   { href: '/', label: 'Map / Dashboard' },
   { href: '/opportunities', label: 'Opportunities' },
   { href: '/notifications', label: 'Notifications' },
+];
+
+const placeholderItems = [
+  { label: 'Disposition' },
+  { label: 'Portfolio Tracking' },
+  { label: 'Live Messaging' },
 ];
 
 export default function RootLayout({
@@ -72,6 +79,61 @@ export default function RootLayout({
                   </a>
                 </li>
               ))}
+              {/* Placeholder items */}
+              <li
+                style={{
+                  borderTop: '1px solid #2a2a4a',
+                  marginTop: 12,
+                  paddingTop: 12,
+                }}
+              >
+                <span
+                  style={{
+                    display: 'block',
+                    padding: '0 20px 8px',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: '#5a5a7a',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                  }}
+                >
+                  Coming Soon
+                </span>
+              </li>
+              {placeholderItems.map((item) => (
+                <li key={item.label}>
+                  <span
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '10px 20px',
+                      color: '#5a5a7a',
+                      fontSize: 14,
+                      fontWeight: 500,
+                      opacity: 0.6,
+                      cursor: 'not-allowed',
+                    }}
+                  >
+                    {item.label}
+                    <span
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 700,
+                        padding: '2px 6px',
+                        borderRadius: 8,
+                        backgroundColor: '#2a2a4a',
+                        color: '#8888aa',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                      }}
+                    >
+                      Soon
+                    </span>
+                  </span>
+                </li>
+              ))}
             </ul>
           </nav>
 
@@ -89,7 +151,10 @@ export default function RootLayout({
                 flexShrink: 0,
               }}
             >
-              <NotificationBell />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <AgentChatPanel />
+                <NotificationBell />
+              </div>
             </header>
             <main
               style={{

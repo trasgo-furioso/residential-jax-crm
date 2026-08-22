@@ -6,6 +6,7 @@ import { webhookRouter } from './webhook.js';
 import { notificationsRouter } from './notifications.js';
 import { outreachRouter } from './outreach.js';
 import { exportRouter } from './export.js';
+import { agentRouter } from './agent.js';
 
 export { router, publicProcedure } from './trpc.js';
 
@@ -25,6 +26,7 @@ export const appRouter = router({
   notifications: notificationsRouter,
   outreach: outreachRouter,
   export: exportRouter,
+  agent: agentRouter,
 });
 
 export type AppRouter = typeof appRouter;

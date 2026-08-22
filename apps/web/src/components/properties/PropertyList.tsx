@@ -2,6 +2,32 @@
 
 import { useState, useMemo, useCallback } from 'react';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+
+async function trpcMutate<T>(path: string, input: unknown): Promise<T> {
+  const res = await fetch(`${API_URL}/trpc/${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ json: input }),
+  });
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  const body = await res.json();
+  return body.result?.data?.json ?? body.result?.data ?? body;
+}
+
+function downloadCsv(csv: string, filename: string) {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 interface PropertyRow {
   parcel_id: string;
   address_street: string;
@@ -101,6 +127,24 @@ export default function PropertyList({
   const [sortField, setSortField] = useState<SortField>('parcel_id');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [page, setPage] = useState(0);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = useCallback(async () => {
+    if (properties.length === 0) return;
+    setExporting(true);
+    try {
+      const parcel_ids = properties.map((p) => p.parcel_id);
+      const result = await trpcMutate<{ csv: string; filename: string }>(
+        'export.exportProperties',
+        { parcel_ids },
+      );
+      downloadCsv(result.csv, result.filename);
+    } catch (err) {
+      console.error('Export failed:', err);
+    } finally {
+      setExporting(false);
+    }
+  }, [properties]);
 
   const handleSort = useCallback(
     (field: SortField) => {
@@ -170,9 +214,27 @@ export default function PropertyList({
           borderBottom: '1px solid #e5e7eb',
         }}
       >
-        <span style={{ fontSize: 14, fontWeight: 600, color: '#1f2937' }}>
-          Properties ({properties.length.toLocaleString()} total)
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: '#1f2937' }}>
+            Properties ({properties.length.toLocaleString()} total)
+          </span>
+          <button
+            onClick={handleExport}
+            disabled={exporting || properties.length === 0}
+            style={{
+              padding: '4px 12px',
+              fontSize: 12,
+              fontWeight: 600,
+              border: '1px solid #d1d5db',
+              borderRadius: 4,
+              backgroundColor: exporting ? '#f3f4f6' : '#ffffff',
+              color: exporting || properties.length === 0 ? '#9ca3af' : '#374151',
+              cursor: exporting || properties.length === 0 ? 'default' : 'pointer',
+            }}
+          >
+            {exporting ? 'Exporting...' : 'Export CSV'}
+          </button>
+        </div>
         {totalPages > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
             <button
