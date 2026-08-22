@@ -52,6 +52,7 @@ export class ResidentialCrmStack extends Stack {
         IPNS_QUERY_TABLE_KEY: process.env.IPNS_QUERY_TABLE_KEY ?? '',
         BEDROCK_MODEL_ID: process.env.BEDROCK_MODEL_ID ?? '',
         OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? '',
+        ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
         PAGERDUTY_ROUTING_KEY_SECRET_ARN:
           process.env.PAGERDUTY_ROUTING_KEY_SECRET_ARN ?? '',
       },
@@ -68,7 +69,7 @@ export class ResidentialCrmStack extends Stack {
 
     const allowOrigins = props?.frontendUrl
       ? [props.frontendUrl]
-      : ['https://*.amplifyapp.com'];
+      : ['*'];
 
     const httpApi = new apigwv2.HttpApi(this, 'CrmHttpApi', {
       apiName: 'residential-crm-api',
