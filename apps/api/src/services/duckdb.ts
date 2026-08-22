@@ -188,3 +188,17 @@ export async function queryPropertiesByCriteria(filters: PropertyFilters): Promi
 
   return runQuery<PropertyRow>(sql, params);
 }
+
+/**
+ * Execute a raw WHERE clause against the properties view.
+ * Used by the AI agent to run LLM-generated filters.
+ * The caller MUST sanitize the clause before passing it here.
+ */
+export async function queryPropertiesWithWhere(
+  whereClause: string,
+  limit: number = 20,
+): Promise<PropertyRow[]> {
+  await ensureInitialized();
+  const sql = `SELECT * FROM properties WHERE ${whereClause} LIMIT ${Math.min(limit, 200)}`;
+  return runQuery<PropertyRow>(sql);
+}
