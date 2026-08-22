@@ -8,8 +8,12 @@ frontend:
     build:
       commands:
         - pnpm turbo run build --filter=@crm/web...
+    postBuild:
+      commands:
+        - cd apps/web && mkdir -p .amplify-hosting/compute/default && mkdir -p .amplify-hosting/static/_next && cp -r .next/standalone/. .amplify-hosting/compute/default/ && cp -r .next/static .amplify-hosting/static/_next/static && (cp -r public/. .amplify-hosting/static/ 2>/dev/null || true)
+        - printf '{"version":1,"routes":[{"path":"/_next/static/*","target":{"kind":"Static"}},{"path":"/*.*","target":{"kind":"Static"},"fallback":{"kind":"Compute","src":"default"}},{"path":"/*","target":{"kind":"Compute","src":"default"}}],"computeResources":[{"name":"default","entrypoint":"server.js","runtime":"nodejs18.x"}],"framework":{"name":"next","version":"14.2.35"}}' > apps/web/.amplify-hosting/deploy-manifest.json
   artifacts:
-    baseDirectory: apps/web
+    baseDirectory: apps/web/.amplify-hosting
     files:
       - '**/*'
   cache:
