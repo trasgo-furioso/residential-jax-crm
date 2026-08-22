@@ -128,7 +128,7 @@ Routing decision from `arceus`. Each implementation challenge maps to a specific
 
 | Challenge | Agent | Skills | Rationale |
 |-----------|-------|--------|-----------|
-| Monorepo structure, Next.js App Router layout, shared packages, tRPC API shape | `metagross` | `build-frontend-backends`, `apply-engineering-guidelines` | Metagross owns fullstack monorepo design with Turborepo, Amplify frontends, tRPC + Lambda backends, and CDK infrastructure |
+| Next.js App Router layout, shared types, API route handlers | `metagross` | `build-frontend-backends`, `apply-engineering-guidelines` | Metagross patterns adapted for Vercel deployment — Next.js Route Handlers replace tRPC/Lambda; Vercel replaces Amplify/CDK |
 
 ### Phase 2: Data Layer — Property Data from IPFS
 
@@ -141,7 +141,7 @@ Routing decision from `arceus`. Each implementation challenge maps to a specific
 
 | Challenge | Agent | Skills | Rationale |
 |-----------|-------|--------|-----------|
-| Drizzle schema (opportunities, saved criteria, notifications, outreach, tasks), migrations, CRUD API routes | `metagross` | `use-elephant-query-db`, `apply-engineering-guidelines` | Metagross builds the tRPC/API layer; use-elephant-query-db has Drizzle + Neon patterns; engineering guidelines enforce TypeScript + testing standards |
+| Drizzle schema (opportunities, saved criteria, notifications, outreach, tasks), migrations, CRUD API routes | `metagross` | `use-elephant-query-db`, `apply-engineering-guidelines` | Metagross builds the API route layer; use-elephant-query-db has Drizzle + Neon patterns; engineering guidelines enforce TypeScript + testing standards |
 
 ### Phase 4: Frontend — Map & Search UI
 
@@ -184,6 +184,10 @@ Routing decision from `arceus`. Each implementation challenge maps to a specific
 |-----------|-------|--------|-----------|
 | Vercel deployment, environment config, hosted runtime verification | `metagross` | `apply-engineering-guidelines` | Metagross handles deployment; engineering guidelines enforce observability |
 | Demo video walkthrough | — | — | Manual effort, not agent-assisted |
+
+### Adaptation Note
+
+Metagross and `build-frontend-backends` are designed for AWS infrastructure (Turborepo, Amplify, tRPC + Lambda, CDK). This project adapts the patterns for Vercel deployment: Next.js Route Handlers replace tRPC, Vercel hosting replaces Amplify, and no CDK/Lambda infrastructure is needed. The skill's monorepo structure, shared-package patterns, and testing strategies still apply.
 
 ### Agent Summary
 

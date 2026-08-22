@@ -46,7 +46,7 @@
 - [ ] T011 Define Drizzle ORM schema for all CRM tables in src/lib/db/schema.ts (saved_criteria, pipeline_events, notifications, opportunities, opportunity_history, tasks, outreach_records — per data-model.md)
 - [ ] T012 Create Drizzle client with Neon serverless driver in src/lib/db/index.ts
 - [ ] T013 Create drizzle.config.ts and run initial migration to Neon with `drizzle-kit push`
-- [ ] T014 Create root layout with sidebar navigation in src/app/layout.tsx (links: Map/Dashboard, Opportunities, Notifications; placeholder sections for Disposition, Portfolio, Messaging — disabled)
+- [ ] T014 Create root layout with sidebar navigation in src/app/layout.tsx (links: Map/Dashboard, Opportunities, Notifications)
 
 **Checkpoint**: DuckDB-WASM loads Duval Parquet from IPFS, Drizzle connects to Neon, layout renders with navigation.
 
@@ -116,7 +116,7 @@
 - [ ] T036 [P] [US4] Create API routes for tasks in src/app/api/opportunities/[id]/tasks/route.ts (GET list, POST create with title, assignee, due_date; PATCH toggle completed)
 - [ ] T037 [US4] Create OpportunityCard component in src/components/opportunities/OpportunityCard.tsx (show stage, owner, asking price, offer, match score, last updated)
 - [ ] T038 [P] [US4] Create StageTracker component in src/components/opportunities/StageTracker.tsx (visual pipeline: Identified → Contacted → Negotiating → Under Contract → Closed/Dead; click to advance with note prompt)
-- [ ] T039 [US4] Create opportunities page in src/app/opportunities/page.tsx (filterable list: by stage, zip code, criteria match score, date range; click card → detail view with StageTracker, notes, tasks, offers)
+- [ ] T039 [US4] Create opportunities page in src/app/opportunities/page.tsx (filterable list: by stage, zip code, criteria match score, distress signals (ownership tenure, roof age, regional owner), date range; click card → detail view with StageTracker, notes, tasks, offers)
 - [ ] T040 [US4] Add "Create Opportunity" button to PropertyDetail component in src/components/properties/PropertyDetail.tsx (check for existing opportunity on same parcel_id — warn if exists, link to it; otherwise create new)
 
 **Checkpoint**: Property detail → Create Opportunity → advance stages → record notes/offers → assign task → filter in opportunity list. V4 validated.
@@ -170,12 +170,23 @@
 **Purpose**: Deployment, demo, and quality assurance
 **Agent**: `metagross` | **Skills**: `apply-engineering-guidelines`, `integrate-ci-cd`
 
-- [ ] T050 Configure Vercel deployment with environment variables (DATABASE_URL, WEBHOOK_SECRET, IPNS keys, OPENAI_API_KEY) in vercel.json or Vercel dashboard
-- [ ] T051 Deploy to Vercel and verify hosted runtime works without local setup
-- [ ] T052 Run full quickstart.md validation (V1-V8) against deployed URL
-- [ ] T053 [P] Add staleness warning UI when IPNS resolution fails or data is older than 24h (FR-013 from parent spec — show banner, retry in background)
-- [ ] T054 [P] Add duplicate opportunity guard in src/app/api/opportunities/route.ts (check existing opportunity for same parcel_id before creating, return warning + link)
-- [ ] T055 Record demo video walkthrough covering the end-to-end flow from spec demo transcript
+### Tests (constitution: Vitest mandatory)
+
+- [ ] T050 [P] Write unit tests for criteria matcher in tests/unit/criteria-matcher.test.ts (percentage scoring, per-criterion breakdown, partial matches, zero matches, all-match edge case)
+- [ ] T051 [P] Write unit tests for webhook handler in tests/unit/webhook-handler.test.ts (HMAC verification, event deduplication, delta matching against saved criteria, summary notification generation)
+- [ ] T052 [P] Write contract test for webhook payload in tests/contract/webhook-payload.test.ts (validate incoming payload shape matches contracts/webhook-receiver.md, test 200/401/500 responses)
+
+### Deployment & Validation
+
+- [ ] T053 Configure Vercel deployment with environment variables (DATABASE_URL, WEBHOOK_SECRET, IPNS keys, OPENAI_API_KEY) in vercel.json or Vercel dashboard
+- [ ] T054 Deploy to Vercel and verify hosted runtime works without local setup
+- [ ] T055 Run full quickstart.md validation (V1-V8) against deployed URL
+- [ ] T056 [P] Validate map performance at scale — load full Duval dataset (~245k properties), verify map interactions remain under 2 seconds (SC-004)
+- [ ] T057 [P] Validate agent accuracy — run the 3 demo transcript queries against the deployed agent, verify relevant results with sources for at least 80% (SC-005)
+- [ ] T058 [P] Add staleness warning UI when IPNS resolution fails or data is older than 24h (parent integration spec FR-013 — graceful IPNS degradation: show banner, retry in background)
+- [ ] T059 [P] Add duplicate opportunity guard in src/app/api/opportunities/route.ts (check existing opportunity for same parcel_id before creating, return warning + link)
+- [ ] T060 [P] Configure GitHub Actions CI/CD pipeline with Vitest test runner and Vercel deploy (integrate-ci-cd skill)
+- [ ] T061 Record demo video walkthrough covering the end-to-end flow from spec demo transcript
 
 ---
 
