@@ -8,10 +8,10 @@ let connInstance: duckdbWasm.AsyncDuckDBConnection | null = null;
 let initPromise: Promise<duckdbWasm.AsyncDuckDBConnection> | null = null;
 let viewCreated = false;
 
-function getParquetUrl(): string {
+function getParquetUrl(): string | null {
   const ipnsKey = process.env.NEXT_PUBLIC_IPNS_QUERY_TABLE;
-  if (!ipnsKey) {
-    throw new Error('NEXT_PUBLIC_IPNS_QUERY_TABLE environment variable is required');
+  if (!ipnsKey || ipnsKey === 'placeholder') {
+    return null;
   }
   return `https://ipfs.filebase.io/ipns/${ipnsKey}/query-tables/duval/query-table.parquet`;
 }
@@ -41,10 +41,14 @@ async function initDuckDB(): Promise<duckdbWasm.AsyncDuckDBConnection> {
   return connInstance;
 }
 
-async function ensureView(): Promise<duckdbWasm.AsyncDuckDBConnection> {
+async function ensureView(): Promise<duckdbWasm.AsyncDuckDBConnection | null> {
+  const url = getParquetUrl();
+  if (!url) {
+    console.warn('[duckdb] NEXT_PUBLIC_IPNS_QUERY_TABLE not configured — returning empty data');
+    return null;
+  }
   const conn = await getConnection();
   if (!viewCreated) {
-    const url = getParquetUrl();
     await conn.query(`
       CREATE OR REPLACE VIEW properties AS
       SELECT * FROM read_parquet('${url}');
@@ -80,6 +84,7 @@ export interface GeoJSONFeatureCollection {
  */
 export async function queryProperties(): Promise<GeoJSONFeatureCollection> {
   const conn = await ensureView();
+  if (!conn) return { type: 'FeatureCollection', features: [] };
   const result = await conn.query('SELECT * FROM properties');
   const rows = result.toArray().map((row: Record<string, unknown>) => ({ ...row }));
 
@@ -108,6 +113,7 @@ export async function queryPropertyByParcelId(
   parcelId: string,
 ): Promise<Record<string, unknown> | null> {
   const conn = await ensureView();
+  if (!conn) return null;
   const result = await conn.query(`SELECT * FROM properties WHERE parcel_id = '${parcelId.replace(/'/g, "''")}'`);
   const rows = result.toArray().map((row: Record<string, unknown>) => ({ ...row }));
   return rows.length > 0 ? rows[0] : null;
@@ -211,6 +217,7 @@ export async function queryPropertiesByCriteria(
   filters: CriteriaFilters,
 ): Promise<GeoJSONFeatureCollection> {
   const conn = await ensureView();
+  if (!conn) return { type: 'FeatureCollection', features: [] };
 
   const conditions: string[] = [];
 

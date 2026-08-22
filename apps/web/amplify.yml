@@ -7,7 +7,7 @@ frontend:
         - pnpm install --frozen-lockfile
     build:
       commands:
-        - pnpm turbo run build --filter=web...
+        - pnpm turbo run build --filter=@crm/web...
   artifacts:
     baseDirectory: apps/web/.next
     files:
