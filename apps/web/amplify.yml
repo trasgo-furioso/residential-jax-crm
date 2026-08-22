@@ -1,25 +1,34 @@
 version: 1
-frontend:
-  phases:
-    preBuild:
-      commands:
-        - pwd
-        - ls -la
-        - echo "CODEBUILD_SRC_DIR=$CODEBUILD_SRC_DIR"
-        - ls -la $CODEBUILD_SRC_DIR/ || true
-        - npm install -g pnpm
-        - REPO_ROOT=$(find $CODEBUILD_SRC_DIR -name "pnpm-workspace.yaml" -maxdepth 3 -print -quit | xargs dirname) && echo "REPO_ROOT=$REPO_ROOT" && cd "$REPO_ROOT" && pnpm install --frozen-lockfile
-    build:
-      commands:
-        - REPO_ROOT=$(find $CODEBUILD_SRC_DIR -name "pnpm-workspace.yaml" -maxdepth 3 -print -quit | xargs dirname) && cd "$REPO_ROOT" && pnpm turbo run build --filter=@crm/web...
-    postBuild:
-      commands:
-        - REPO_ROOT=$(find $CODEBUILD_SRC_DIR -name "pnpm-workspace.yaml" -maxdepth 3 -print -quit | xargs dirname) && WEB_DIR="$REPO_ROOT/apps/web" && rm -rf "$WEB_DIR/.amplify" && mkdir -p "$WEB_DIR/.amplify/compute/default" && mkdir -p "$WEB_DIR/.amplify/static/_next" && cp -R "$WEB_DIR/.next/standalone/." "$WEB_DIR/.amplify/compute/default/" && cp -R "$WEB_DIR/.next/static" "$WEB_DIR/.amplify/static/_next/" && (if [ -d "$WEB_DIR/public" ]; then cp -R "$WEB_DIR/public" "$WEB_DIR/.amplify/compute/default/"; fi) && node -e "require('fs').writeFileSync('$WEB_DIR/.amplify/deploy-manifest.json', JSON.stringify({version:1,routes:[{path:'/_next/static/*',target:{kind:'Static',src:'static'}},{path:'/*',target:{kind:'Compute',src:'default'}}],computeResources:[{name:'default',entrypoint:'server.js'}]}))" && test -f "$WEB_DIR/.amplify/compute/default/server.js" && test -f "$WEB_DIR/.amplify/deploy-manifest.json" && echo "Artifacts ready at $WEB_DIR/.amplify"
-  artifacts:
-    baseDirectory: .amplify
-    files:
-      - '**/*'
-  cache:
-    paths:
-      - node_modules/**/*
-      - .next/cache/**/*
+applications:
+  - appRoot: apps/web
+    frontend:
+      buildPath: /
+      phases:
+        preBuild:
+          commands:
+            - npm install -g pnpm
+            - pnpm install --frozen-lockfile
+        build:
+          commands:
+            - pnpm turbo run build --filter=@crm/web...
+        postBuild:
+          commands:
+            - rm -rf apps/web/.amplify
+            - mkdir -p apps/web/.amplify/compute/default
+            - mkdir -p apps/web/.amplify/static/_next
+            - cp -R apps/web/.next/standalone/. apps/web/.amplify/compute/default/
+            - cp -R apps/web/.next/static apps/web/.amplify/static/_next/
+            - if [ -d apps/web/public ]; then cp -R apps/web/public apps/web/.amplify/compute/default/; fi
+            - node -e "require('fs').writeFileSync('apps/web/.amplify/deploy-manifest.json',JSON.stringify({version:1,routes:[{path:'/_next/static/*',target:{kind:'Static',src:'static'}},{path:'/*',target:{kind:'Compute',src:'default'}}],computeResources:[{name:'default',entrypoint:'server.js'}]}))"
+            - test -f apps/web/.amplify/compute/default/server.js
+            - test -f apps/web/.amplify/deploy-manifest.json
+      artifacts:
+        baseDirectory: apps/web/.amplify
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - node_modules/**/*
+          - apps/web/node_modules/**/*
+          - apps/web/.next/cache/**/*
+          - .turbo/**/*
