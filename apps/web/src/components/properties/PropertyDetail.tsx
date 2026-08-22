@@ -1,5 +1,8 @@
 'use client';
 
+import { useState } from 'react';
+import { createOpportunity } from '@/lib/opportunities-api';
+
 interface PropertyData {
   parcel_id: string;
   address_street: string;
@@ -80,6 +83,34 @@ function Field({ label, value }: { label: string; value: string | number | boole
 }
 
 export default function PropertyDetail({ property, onClose }: PropertyDetailProps) {
+  const [createStatus, setCreateStatus] = useState<
+    'idle' | 'loading' | 'success' | 'exists'
+  >('idle');
+  const [existingOppId, setExistingOppId] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  async function handleCreateOpportunity() {
+    setCreateStatus('loading');
+    setErrorMsg(null);
+    try {
+      const result = await createOpportunity({
+        parcel_id: property.parcel_id,
+      });
+      if (result.exists) {
+        setCreateStatus('exists');
+        setExistingOppId(result.opportunity.id);
+      } else {
+        setCreateStatus('success');
+        setExistingOppId(result.opportunity.id);
+      }
+    } catch (err) {
+      setCreateStatus('idle');
+      setErrorMsg(
+        err instanceof Error ? err.message : 'Failed to create opportunity',
+      );
+    }
+  }
+
   const sources = property.provenance_sources
     ? property.provenance_sources.split(',').map((s) => s.trim())
     : [];
@@ -208,25 +239,84 @@ export default function PropertyDetail({ property, onClose }: PropertyDetailProp
       </div>
 
       {/* Create Opportunity CTA */}
-      <button
-        style={{
-          width: '100%',
-          padding: '10px 16px',
-          backgroundColor: '#3b82f6',
-          color: '#ffffff',
-          border: 'none',
-          borderRadius: 6,
-          fontSize: 14,
-          fontWeight: 600,
-          cursor: 'pointer',
-          marginTop: 8,
-        }}
-        onClick={() => {
-          // Placeholder — will be wired in Phase 6 / US4
-        }}
-      >
-        Create Opportunity
-      </button>
+      {createStatus === 'success' ? (
+        <div
+          style={{
+            marginTop: 8,
+            padding: '10px 16px',
+            backgroundColor: '#d1fae5',
+            color: '#065f46',
+            borderRadius: 6,
+            fontSize: 13,
+            fontWeight: 500,
+            textAlign: 'center',
+          }}
+        >
+          Opportunity created successfully!{' '}
+          <a
+            href="/opportunities"
+            style={{ color: '#047857', fontWeight: 600 }}
+          >
+            View Opportunities
+          </a>
+        </div>
+      ) : createStatus === 'exists' ? (
+        <div
+          style={{
+            marginTop: 8,
+            padding: '10px 16px',
+            backgroundColor: '#fef3c7',
+            color: '#92400e',
+            borderRadius: 6,
+            fontSize: 13,
+            fontWeight: 500,
+            textAlign: 'center',
+          }}
+        >
+          An opportunity already exists for this parcel.{' '}
+          <a
+            href="/opportunities"
+            style={{ color: '#b45309', fontWeight: 600 }}
+          >
+            View Opportunity
+          </a>
+        </div>
+      ) : (
+        <button
+          style={{
+            width: '100%',
+            padding: '10px 16px',
+            backgroundColor:
+              createStatus === 'loading' ? '#93c5fd' : '#3b82f6',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: 6,
+            fontSize: 14,
+            fontWeight: 600,
+            cursor:
+              createStatus === 'loading' ? 'not-allowed' : 'pointer',
+            marginTop: 8,
+          }}
+          onClick={handleCreateOpportunity}
+          disabled={createStatus === 'loading'}
+        >
+          {createStatus === 'loading'
+            ? 'Creating...'
+            : 'Create Opportunity'}
+        </button>
+      )}
+      {errorMsg && (
+        <div
+          style={{
+            marginTop: 6,
+            fontSize: 12,
+            color: '#dc2626',
+            textAlign: 'center',
+          }}
+        >
+          {errorMsg}
+        </div>
+      )}
     </div>
   );
 }
