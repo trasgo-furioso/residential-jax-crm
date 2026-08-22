@@ -9,6 +9,7 @@ import PropertyList from '@/components/properties/PropertyList';
 import PropertyDetail from '@/components/properties/PropertyDetail';
 import SearchCriteria from '@/components/properties/SearchCriteria';
 import DrawControl from '@/components/map/DrawControl';
+import StalenessWarning from '@/components/map/StalenessWarning';
 
 type ViewMode = 'split' | 'map' | 'list';
 
@@ -144,6 +145,8 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [activeFilters, setActiveFilters] = useState<CriteriaFilters | null>(null);
   const [drawnGeometry, setDrawnGeometry] = useState<GeoJSON.Geometry | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [lastLoadTime, setLastLoadTime] = useState<number | null>(null);
   const mapRefHolder = useRef<MapRef | null>(null);
   const handleMapRefCallback = useCallback((instance: MapRef | null) => {
     mapRefHolder.current = instance;
@@ -157,15 +160,19 @@ export default function Dashboard() {
       try {
         setLoading(true);
         setError(null);
+        setLoadFailed(false);
         const data = await queryProperties();
         if (cancelled) return;
 
         setAllGeojson(data);
         setGeojson(data);
         setProperties(data.features.map(featureToRow));
+        setLastLoadTime(Date.now());
+        setLoadFailed(false);
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Failed to load properties');
+          setLoadFailed(true);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -248,6 +255,20 @@ export default function Dashboard() {
     setDrawnGeometry(geometry);
   }, []);
 
+  const handleRetryLoad = useCallback(async () => {
+    try {
+      const data = await queryProperties();
+      setAllGeojson(data);
+      setGeojson(data);
+      setProperties(data.features.map(featureToRow));
+      setLastLoadTime(Date.now());
+      setLoadFailed(false);
+      setError(null);
+    } catch {
+      setLoadFailed(true);
+    }
+  }, []);
+
   const showMap = viewMode === 'split' || viewMode === 'map';
   const showList = viewMode === 'split' || viewMode === 'list';
 
@@ -312,6 +333,13 @@ export default function Dashboard() {
         gap: 0,
       }}
     >
+      {/* Staleness warning banner */}
+      <StalenessWarning
+        loadFailed={loadFailed}
+        lastLoadTime={lastLoadTime}
+        onRetry={handleRetryLoad}
+      />
+
       {/* Toolbar */}
       <div
         style={{

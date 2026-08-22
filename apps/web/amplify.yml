@@ -1,20 +1,23 @@
 version: 1
 applications:
-  - frontend:
+  - appRoot: apps/web
+    frontend:
       phases:
         preBuild:
           commands:
-            - corepack enable
+            - cd ../..
+            - npm install -g pnpm
             - pnpm install --frozen-lockfile
         build:
           commands:
-            - pnpm turbo run build --filter=@crm/web
+            - cd ../..
+            - pnpm turbo run build --filter=web...
       artifacts:
-        baseDirectory: apps/web/.next
+        baseDirectory: .next
         files:
           - '**/*'
       cache:
         paths:
           - node_modules/**/*
+          - ../../node_modules/**/*
           - .next/cache/**/*
-    appRoot: .
