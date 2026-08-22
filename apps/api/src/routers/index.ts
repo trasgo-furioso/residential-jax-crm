@@ -1,14 +1,10 @@
-import { initTRPC } from '@trpc/server';
-import { z } from 'zod';
-import type { Context } from '@/context.js';
+import { router, publicProcedure } from './trpc.js';
+import { propertiesRouter } from './properties.js';
 
-const t = initTRPC.context<Context>().create();
-
-export const router = t.router;
-export const publicProcedure = t.procedure;
+export { router, publicProcedure } from './trpc.js';
 
 /**
- * Placeholder sub-routers — real implementations arrive in Phase 3+.
+ * Sub-routers
  */
 const healthRouter = router({
   ping: publicProcedure.query(() => ({ status: 'ok', timestamp: new Date().toISOString() })),
@@ -16,6 +12,7 @@ const healthRouter = router({
 
 export const appRouter = router({
   health: healthRouter,
+  properties: propertiesRouter,
 });
 
 export type AppRouter = typeof appRouter;
