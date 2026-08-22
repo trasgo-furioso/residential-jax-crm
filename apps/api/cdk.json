@@ -1,0 +1,10 @@
+{
+  "app": "npx tsx infra/app.ts",
+  "watch": {
+    "include": ["src/**", "infra/**"],
+    "exclude": ["node_modules", "dist", "tests"]
+  },
+  "context": {
+    "@aws-cdk/core:stackRelativeExports": true
+  }
+}

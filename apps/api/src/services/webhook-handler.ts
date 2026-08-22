@@ -1,5 +1,9 @@
 import crypto from 'node:crypto';
 import { eq } from 'drizzle-orm';
+import {
+  SecretsManagerClient,
+  GetSecretValueCommand,
+} from '@aws-sdk/client-secrets-manager';
 import { db } from '@/lib/db/index.js';
 import {
   pipelineEvents,
@@ -13,6 +17,74 @@ import {
 import type { WebhookEvent } from '@crm/shared';
 import type { Logger } from '@aws-lambda-powertools/logger';
 import type { Metrics } from '@aws-lambda-powertools/metrics';
+
+// ── PagerDuty alerting (production only) ────────────────────────────────────
+
+const secretsClient = new SecretsManagerClient({ region: 'us-east-2' });
+
+async function triggerPagerDutyAlert(
+  error: Error | string,
+  eventId: string,
+  logger?: Logger,
+): Promise<void> {
+  // Only fire in production
+  if (!process.env.AWS_ACCOUNT_ID && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return;
+  }
+
+  const secretArn = process.env.PAGERDUTY_ROUTING_KEY_SECRET_ARN;
+  if (!secretArn) {
+    logger?.warn('PAGERDUTY_ROUTING_KEY_SECRET_ARN not set, skipping alert');
+    return;
+  }
+
+  try {
+    const secretResponse = await secretsClient.send(
+      new GetSecretValueCommand({ SecretId: secretArn }),
+    );
+    const routingKey = secretResponse.SecretString;
+    if (!routingKey) {
+      logger?.warn('PagerDuty routing key secret is empty');
+      return;
+    }
+
+    const payload = {
+      routing_key: routingKey,
+      event_action: 'trigger' as const,
+      payload: {
+        summary: `Webhook processing failed for event ${eventId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        source: 'residential-crm-api',
+        severity: 'critical' as const,
+        custom_details: {
+          event_id: eventId,
+          error_message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          service: 'ResidentialCRM',
+          timestamp: new Date().toISOString(),
+        },
+      },
+    };
+
+    const response = await fetch('https://events.pagerduty.com/v2/enqueue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const body = (await response.json()) as { dedup_key?: string };
+    logger?.info('PagerDuty alert triggered', {
+      dedup_key: body.dedup_key,
+      status: response.status,
+    });
+  } catch (pdError) {
+    // Do NOT let PagerDuty failure block the webhook error response
+    logger?.error('Failed to trigger PagerDuty alert', {
+      error: pdError instanceof Error ? pdError.message : String(pdError),
+    });
+  }
+}
 
 // ── Signature verification ──────────────────────────────────────────────────
 
@@ -229,6 +301,13 @@ export async function processWebhookEvent(
       event_id: event.event_id,
       error: error instanceof Error ? error.message : String(error),
     });
+
+    // Fire PagerDuty alert (non-blocking)
+    await triggerPagerDutyAlert(
+      error instanceof Error ? error : String(error),
+      event.event_id,
+      logger,
+    );
 
     throw error;
   }

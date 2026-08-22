@@ -1,0 +1,51 @@
+{
+  "namespace": "ResidentialCRM",
+  "service": "ResidentialCRM",
+  "metrics": [
+    {
+      "name": "WebhookProcessed",
+      "unit": "Count",
+      "description": "Number of webhook events successfully processed",
+      "dimensions": [
+        { "name": "service", "default": "ResidentialCRM" },
+        { "name": "environment", "default": "production" }
+      ]
+    },
+    {
+      "name": "WebhookFailed",
+      "unit": "Count",
+      "description": "Number of webhook events that failed processing",
+      "dimensions": [
+        { "name": "service", "default": "ResidentialCRM" },
+        { "name": "environment", "default": "production" }
+      ]
+    },
+    {
+      "name": "NotificationGenerated",
+      "unit": "Count",
+      "description": "Number of notifications generated from criteria matches",
+      "dimensions": [
+        { "name": "service", "default": "ResidentialCRM" },
+        { "name": "environment", "default": "production" }
+      ]
+    },
+    {
+      "name": "CriteriaMatched",
+      "unit": "Count",
+      "description": "Number of saved criteria that matched delta parcels",
+      "dimensions": [
+        { "name": "service", "default": "ResidentialCRM" },
+        { "name": "environment", "default": "production" }
+      ]
+    },
+    {
+      "name": "ProcessingDuration",
+      "unit": "Milliseconds",
+      "description": "End-to-end webhook processing duration",
+      "dimensions": [
+        { "name": "service", "default": "ResidentialCRM" },
+        { "name": "environment", "default": "production" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+# Ensure only one deployment runs at a time
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # Required for OIDC
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm turbo run build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-2
+
+      - name: Deploy API via CDK
+        working-directory: apps/api
+        run: npx cdk deploy --require-approval never
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
+          IPNS_OPEN_DATA_KEY: ${{ secrets.IPNS_OPEN_DATA_KEY }}
+          IPNS_QUERY_TABLE_KEY: ${{ secrets.IPNS_QUERY_TABLE_KEY }}
+          BEDROCK_MODEL_ID: ${{ secrets.BEDROCK_MODEL_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PAGERDUTY_ROUTING_KEY_SECRET_ARN: ${{ secrets.PAGERDUTY_ROUTING_KEY_SECRET_ARN }}
+
+      # Amplify auto-deploys the frontend (apps/web) on push to main.
+      # No manual deployment step needed for the frontend here.
