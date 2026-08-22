@@ -8,6 +8,16 @@
 
 **Input**: PRD from discovery session + README.md stakeholder acceptance criteria
 
+## Clarifications
+
+### Session 2026-08-22
+
+- Q: Does this CRM require user authentication (login)? → A: No login — single-user app, anyone with the URL can access it.
+- Q: What uniquely identifies a property in the system? → A: Parcel ID (RE#) is the unique identifier.
+- Q: How should the match score work when a property satisfies some but not all criteria? → A: Percentage score (e.g., "4/5 criteria met, 80%") with per-criterion breakdown.
+- Q: How does the CRM detect new pipeline data? → A: Pipeline pushes a webhook/event to the CRM after each publish.
+- Q: How should the system notify the investor when a pipeline update produces many matches? → A: Single summary notification per pipeline run (e.g., "12 new matches for 'Arlington Distressed'") linking to the batch.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Map-Based Property Discovery (Priority: P1)
@@ -125,7 +135,7 @@ The investor exports selected properties, owners, and opportunity records for do
 ### Edge Cases
 
 - What happens when the pipeline delivers a property update that changes a previously-matching property to no longer match saved criteria? The property should be removed from active match results but the notification history should retain the original match event.
-- How does the system handle a pipeline update with thousands of new matching properties? Notifications should be batched or summarized rather than generating thousands of individual alerts.
+- How does the system handle a pipeline update with thousands of new matching properties? A single summary notification is generated per pipeline run per saved criteria set, linking to the full batch of matched properties.
 - What happens when the investor tries to create an opportunity for a property that already has one? The system should warn and link to the existing opportunity rather than creating a duplicate.
 - How does the map perform with the full Duval County property dataset (hundreds of thousands of records)? The map should use clustering or progressive loading to remain responsive.
 
@@ -137,9 +147,9 @@ The investor exports selected properties, owners, and opportunity records for do
 - **FR-002**: System MUST support both map view (with clickable markers) and list view (sortable table) for property browsing, with synchronized selection.
 - **FR-003**: System MUST preserve and display source provenance (pipeline run, collection timestamp, data source) for every property record.
 - **FR-004**: System MUST allow users to define acquisition criteria including: ownership duration thresholds, roof-age thresholds, zip code or neighborhood filters, assessed-value bands, geographic bounds (radius or polygon), and optional distress signals.
-- **FR-005**: System MUST rank and display matching properties with a clear match-score rationale showing which criteria each property satisfies.
+- **FR-005**: System MUST rank matching properties using a percentage match score (criteria met / total criteria) and display a per-criterion breakdown showing which criteria each property satisfies or misses.
 - **FR-006**: System MUST allow users to save named criteria sets and recall them for future searches.
-- **FR-007**: System MUST generate in-app notifications when new or updated pipeline records match saved criteria, linking to the specific property and pipeline run.
+- **FR-007**: System MUST generate in-app notifications when new or updated pipeline records match saved criteria. Notifications are triggered by a webhook/event pushed from the pipeline after each publish. When a pipeline run produces multiple matches for a saved criteria set, the system MUST generate a single summary notification (e.g., "12 new matches for 'Arlington Distressed'") linking to the batch of matched properties.
 - **FR-008**: System MUST maintain a notification history showing timestamp, matched criteria name, and the record change that triggered each alert.
 - **FR-009**: System MUST support creating CRM opportunity records from properties with stages: Identified → Contacted → Negotiating → Under Contract → Closed / Dead.
 - **FR-010**: System MUST record owner interest level, asking price, offer amounts, free-text notes, next steps, and task assignments on each opportunity.
@@ -147,12 +157,12 @@ The investor exports selected properties, owners, and opportunity records for do
 - **FR-012**: System MUST support filtering opportunities by stage, criteria match strength, geography, ownership signals, and distress indicators.
 - **FR-013**: System MUST provide a RAG-backed agent interface that accepts natural-language queries and returns matching properties with source-backed evidence.
 - **FR-014**: System MUST support exporting selected properties, owners, and opportunity records as downloadable files.
-- **FR-015**: System MUST consume data from the continuous Duval Oracle pipeline rather than a static one-time data load.
+- **FR-015**: System MUST consume data from the continuous Duval Oracle pipeline via webhook/event notifications pushed by the pipeline after each publish, rather than a static one-time data load.
 - **FR-016**: System MUST operate without requiring Oracle to carry ongoing hosted-database costs beyond the existing DuckDB / Elephant IPFS pattern.
 
 ### Key Entities
 
-- **Property**: A residential parcel in Duval County with attributes from the Oracle pipeline (parcel ID/RE#, address, coordinates, assessed value, ownership history, permit history, roof-age indicators). Core entity for all search, display, and CRM operations.
+- **Property**: A residential parcel in Duval County uniquely identified by parcel ID (RE#), with attributes from the Oracle pipeline (address, coordinates, assessed value, ownership history, permit history, roof-age indicators). Core entity for all search, display, and CRM operations. Parcel ID is the deduplication key when pipeline updates arrive.
 - **Owner**: The recorded owner(s) of a property with name, mailing address, and contact details (where available). Linked to properties and opportunities.
 - **Saved Criteria Set**: A named collection of search filters (ownership duration, roof age, zip codes, value bands, geographic bounds, distress signals) that can be recalled and used for proactive matching.
 - **Notification**: An alert generated when a pipeline update produces a property matching a saved criteria set. Includes reference to the matched criteria, the property, and the pipeline run.
@@ -181,3 +191,4 @@ The investor exports selected properties, owners, and opportunity records for do
 - Court-data enrichment (foreclosure, lien, probate) is optional and additive — the core product is viable with assessor, permit, and ownership data alone.
 - The primary user is a single investor or small team (1-2 people); multi-tenant, role-based access control is not required for the initial release.
 - The CRM will be deployed to a hosted runtime accessible without local setup, per Elephant Platform constitution requirements.
+- No authentication is required — the CRM is a single-user application accessible to anyone with the URL.
