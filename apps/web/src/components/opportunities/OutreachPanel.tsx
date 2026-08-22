@@ -58,7 +58,6 @@ export default function OutreachPanel({ opportunityId }: OutreachPanelProps) {
 
   // Initial load
   useEffect(() => {
-    setLoading(true);
     loadRecords();
   }, [loadRecords]);
 

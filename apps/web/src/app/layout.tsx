@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import AgentChatPanel from '@/components/agent/AgentChatPanel';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Residential Property Acquisition CRM',
   description: 'Jacksonville FL residential property acquisition CRM',

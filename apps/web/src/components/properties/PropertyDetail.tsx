@@ -86,7 +86,7 @@ export default function PropertyDetail({ property, onClose }: PropertyDetailProp
   const [createStatus, setCreateStatus] = useState<
     'idle' | 'loading' | 'success' | 'exists'
   >('idle');
-  const [existingOppId, setExistingOppId] = useState<string | null>(null);
+  const [, setExistingOppId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   async function handleCreateOpportunity() {

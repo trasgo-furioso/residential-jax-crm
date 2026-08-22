@@ -2,7 +2,8 @@
 
 import type * as duckdbWasm from '@duckdb/duckdb-wasm';
 
-let dbInstance: duckdbWasm.AsyncDuckDB | null = null;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+let _dbInstance: duckdbWasm.AsyncDuckDB | null = null;
 let connInstance: duckdbWasm.AsyncDuckDBConnection | null = null;
 let initPromise: Promise<duckdbWasm.AsyncDuckDBConnection> | null = null;
 let viewCreated = false;
@@ -31,7 +32,7 @@ async function initDuckDB(): Promise<duckdbWasm.AsyncDuckDBConnection> {
 
   await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
 
-  dbInstance = db;
+  _dbInstance = db;
   connInstance = await db.connect();
 
   // Load httpfs for remote Parquet access
