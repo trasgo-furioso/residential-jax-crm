@@ -1,23 +1,34 @@
 version: 1
-frontend:
-  phases:
-    preBuild:
-      commands:
-        - npm install -g pnpm
-        - pnpm install --frozen-lockfile
-    build:
-      commands:
-        - pnpm turbo run build --filter=@crm/web...
-    postBuild:
-      commands:
-        - cd apps/web && mkdir -p .amplify-hosting/compute/default && mkdir -p .amplify-hosting/static/_next && cp -r .next/standalone/. .amplify-hosting/compute/default/ && cp -r .next/static .amplify-hosting/static/_next/static && (cp -r public/. .amplify-hosting/static/ 2>/dev/null || true)
-        - printf '{"version":1,"routes":[{"path":"/_next/static/*","target":{"kind":"Static"}},{"path":"/*.*","target":{"kind":"Static"},"fallback":{"kind":"Compute","src":"default"}},{"path":"/*","target":{"kind":"Compute","src":"default"}}],"computeResources":[{"name":"default","entrypoint":"server.js","runtime":"nodejs18.x"}],"framework":{"name":"next","version":"14.2.35"}}' > apps/web/.amplify-hosting/deploy-manifest.json
-  artifacts:
-    baseDirectory: apps/web/.amplify-hosting
-    files:
-      - '**/*'
-  cache:
-    paths:
-      - apps/web/node_modules/**/*
-      - node_modules/**/*
-      - apps/web/.next/cache/**/*
+applications:
+  - appRoot: apps/web
+    frontend:
+      buildPath: /
+      phases:
+        preBuild:
+          commands:
+            - npm install -g pnpm
+            - pnpm install --frozen-lockfile
+        build:
+          commands:
+            - pnpm turbo run build --filter=@crm/web...
+        postBuild:
+          commands:
+            - rm -rf apps/web/.amplify
+            - mkdir -p apps/web/.amplify/compute/default
+            - mkdir -p apps/web/.amplify/static/_next
+            - cp -R apps/web/.next/standalone/. apps/web/.amplify/compute/default/
+            - cp -R apps/web/.next/static apps/web/.amplify/static/_next/
+            - if [ -d apps/web/public ]; then cp -R apps/web/public apps/web/.amplify/compute/default/; fi
+            - 'printf ''{"version":1,"routes":[{"path":"/_next/static/*","target":{"kind":"Static","src":"static"}},{"path":"/*","target":{"kind":"Compute","src":"default"}}],"computeResources":[{"name":"default","entrypoint":"server.js"}]}'' > apps/web/.amplify/deploy-manifest.json'
+            - test -f apps/web/.amplify/compute/default/server.js
+            - test -f apps/web/.amplify/deploy-manifest.json
+      artifacts:
+        baseDirectory: apps/web/.amplify
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - node_modules/**/*
+          - apps/web/node_modules/**/*
+          - apps/web/.next/cache/**/*
+          - .turbo/**/*
