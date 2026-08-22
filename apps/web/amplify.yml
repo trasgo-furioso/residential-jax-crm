@@ -18,7 +18,7 @@ frontend:
         - cp apps/web/.next/standalone/package.json apps/web/.amplify/compute/default/
         - cp -R apps/web/.next/static apps/web/.amplify/static/_next/
         - if [ -d apps/web/public ]; then cp -R apps/web/public/. apps/web/.amplify/static/; fi
-        - node -e "require('fs').writeFileSync('apps/web/.amplify/deploy-manifest.json',JSON.stringify({version:1,routes:[{path:'/_next/static/*',target:{kind:'Static'}},{'path':'/*.*',target:{kind:'Static'},fallback:{kind:'Compute',src:'default'}},{path:'/*',target:{kind:'Compute',src:'default'}}],computeResources:[{name:'default',entrypoint:'server.js',runtime:'nodejs18.x'}],framework:{name:'next',version:'14.2.35'}}))"
+        - node -e "require('fs').writeFileSync('apps/web/.amplify/deploy-manifest.json',JSON.stringify({version:1,routes:[{path:'/_next/static/*',target:{kind:'Static'}},{'path':'/*.*',target:{kind:'Static'},fallback:{kind:'Compute',src:'default'}},{path:'/*',target:{kind:'Compute',src:'default'}}],computeResources:[{name:'default',entrypoint:'server.js',runtime:'nodejs22.x'}],framework:{name:'next',version:'14.2.35'}}))"
         - test -f apps/web/.amplify/compute/default/server.js
         - test -f apps/web/.amplify/deploy-manifest.json
   artifacts:
