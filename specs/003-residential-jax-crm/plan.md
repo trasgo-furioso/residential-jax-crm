@@ -120,6 +120,92 @@ tests/
 
 **Structure Decision**: Fullstack Next.js App Router with colocated API routes. Property data is queried client-side from IPFS via DuckDB-WASM. CRM state (opportunities, criteria, notifications) lives in Vercel Neon Postgres via Drizzle ORM. This separates the zero-cost property data layer from the CRM's own lightweight state.
 
+## Agent & Skill Mapping
+
+Routing decision from `arceus`. Each implementation challenge maps to a specific agent (persona/orchestrator) and one or more skills (knowledge/playbook) from the soofi-xyz team kit.
+
+### Phase 1: Project Scaffolding
+
+| Challenge | Agent | Skills | Rationale |
+|-----------|-------|--------|-----------|
+| Monorepo structure, Next.js App Router layout, shared packages, tRPC API shape | `metagross` | `build-frontend-backends`, `apply-engineering-guidelines` | Metagross owns fullstack monorepo design with Turborepo, Amplify frontends, tRPC + Lambda backends, and CDK infrastructure |
+
+### Phase 2: Data Layer — Property Data from IPFS
+
+| Challenge | Agent | Skills | Rationale |
+|-----------|-------|--------|-----------|
+| Explore Duval property schema, verify field availability, test queries | `donphan` | `use-elephant-mcp` | Donphan explores Oracle open-data via MCP tools; use-elephant-mcp documents query patterns and schema |
+| DuckDB-WASM integration, Parquet httpfs loading, IPNS resolution | `metagross` | `use-elephant-query-db`, `build-frontend-backends` | Metagross handles the TypeScript implementation; use-elephant-query-db covers Drizzle/DuckDB query patterns |
+
+### Phase 3: CRM State Layer — Neon Postgres
+
+| Challenge | Agent | Skills | Rationale |
+|-----------|-------|--------|-----------|
+| Drizzle schema (opportunities, saved criteria, notifications, outreach, tasks), migrations, CRUD API routes | `metagross` | `use-elephant-query-db`, `apply-engineering-guidelines` | Metagross builds the tRPC/API layer; use-elephant-query-db has Drizzle + Neon patterns; engineering guidelines enforce TypeScript + testing standards |
+
+### Phase 4: Frontend — Map & Search UI
+
+| Challenge | Agent | Skills | Rationale |
+|-----------|-------|--------|-----------|
+| MapLibre GL integration, clustered markers, property detail panel, list view, polygon/radius drawing | `metagross` | `build-frontend-backends` | Metagross handles Next.js frontend components; build-frontend-backends covers Amplify + monorepo UI patterns |
+| Criteria builder form, match-score display, saved searches UI | `metagross` | `build-frontend-backends` | Search UI is a frontend concern within the monorepo |
+| Opportunity management, stage tracker, outreach panel, task list | `metagross` | `build-frontend-backends` | CRM workflow UI components |
+
+### Phase 5: Webhook Handler & Notifications
+
+| Challenge | Agent | Skills | Rationale |
+|-----------|-------|--------|-----------|
+| Webhook receiver (HMAC verification, idempotency, sequential processing), criteria matching against delta records, summary notification generation | `metagross` | `apply-engineering-guidelines`, `build-frontend-backends` | Next.js API route handler; metagross owns the backend; engineering guidelines enforce observability and testing |
+
+### Phase 6: RAG Agent — Natural-Language Queries
+
+| Challenge | Agent | Skills | Rationale |
+|-----------|-------|--------|-----------|
+| Local RAG POC — prove DuckDB property queries work from natural language | — | `build-local-rag-pocs` | Start with a local TypeScript CLI POC before integrating into the app |
+| Vercel AI SDK agent integration, system prompt with Parquet schema, tool calling for DuckDB queries | `ash` | `build-ai-agents` | Ash designs Lambda/serverless agents with Vercel AI SDK + Bedrock; build-ai-agents covers ToolLoopAgent patterns |
+| Production RAG with OpenSearch (if local POC insufficient) | `alakazam` / `espeon` | `build-rag-systems` | Alakazam/Espeon own AWS RAG migration; build-rag-systems covers OpenSearch, embeddings, webhook ingestion |
+
+### Phase 7: Export & Placeholders
+
+| Challenge | Agent | Skills | Rationale |
+|-----------|-------|--------|-----------|
+| CSV export of properties/opportunities, placeholder sections for future features | `metagross` | `build-frontend-backends` | Straightforward fullstack feature within the monorepo |
+
+### Phase 8: Testing & CI/CD
+
+| Challenge | Agent | Skills | Rationale |
+|-----------|-------|--------|-----------|
+| Vitest unit/integration tests, contract tests for webhook payload | `metagross` | `apply-engineering-guidelines` | Engineering guidelines mandate Vitest + testing strategy |
+| GitHub Actions CI/CD pipeline, justfile recipes | — | `integrate-ci-cd` | integrate-ci-cd covers shared workflow integration |
+
+### Phase 9: Deployment & Demo
+
+| Challenge | Agent | Skills | Rationale |
+|-----------|-------|--------|-----------|
+| Vercel deployment, environment config, hosted runtime verification | `metagross` | `apply-engineering-guidelines` | Metagross handles deployment; engineering guidelines enforce observability |
+| Demo video walkthrough | — | — | Manual effort, not agent-assisted |
+
+### Agent Summary
+
+| Agent | Role in This Project |
+|-------|---------------------|
+| `metagross` | **Primary** — scaffolding, frontend, backend, webhook, data layer, testing, deployment |
+| `donphan` | **Discovery** — explore Duval property data via MCP before building queries |
+| `ash` | **RAG agent** — serverless AI agent design with Vercel AI SDK |
+| `alakazam` / `espeon` | **Contingency** — production RAG migration if local POC is insufficient |
+| `oracle` | **Deferred** — court-data ingestion if foreclosure/lien enrichment is added later |
+
+### Skill Load Order
+
+1. `apply-engineering-guidelines` — baseline for every phase
+2. `build-frontend-backends` — monorepo, tRPC, Amplify, CDK
+3. `use-elephant-mcp` — property data exploration and schema
+4. `use-elephant-query-db` — Drizzle/Neon query patterns
+5. `build-local-rag-pocs` — RAG POC before production
+6. `build-ai-agents` — Vercel AI SDK agent patterns
+7. `build-rag-systems` — AWS RAG migration (if needed)
+8. `integrate-ci-cd` — GitHub Actions pipelines
+
 ## Complexity Tracking
 
 No constitution violations. No complexity justifications needed.
