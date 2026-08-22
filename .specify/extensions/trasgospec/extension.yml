@@ -1,0 +1,160 @@
+schema_version: "1.0"
+
+extension:
+  id: "trasgospec"
+  name: "Trasgo Spec Kit"
+  version: "0.8.0"
+  description: "Journey-first product specification commands for spec-driven development."
+  author: "Trasgo Furioso [https://github.com/trasgo-furioso]"
+  license: "MIT"
+  category: "utility"
+  effect: "read-write"
+
+requires:
+  speckit_version: ">=0.15.0"
+
+provides:
+  commands:
+    - name: "speckit.trasgospec.hello"
+      file: "commands/speckit.trasgospec.hello.md"
+      description: "Verify Trasgo Spec Kit bundle installation."
+      aliases: ["trasgospec.hello"]
+    - name: "speckit.trasgospec.roadmap"
+      file: "commands/speckit.trasgospec.roadmap.md"
+      description: "View the project roadmap as a markdown table showing all feature specs."
+      aliases: ["trasgospec.roadmap"]
+    - name: "speckit.trasgospec.flow-gate"
+      file: "commands/speckit.trasgospec.flow-gate.md"
+      description: "Enforce GitHub Flow branch discipline — gate or create feature branches."
+      aliases: ["trasgospec.flow-gate"]
+    - name: "speckit.trasgospec.flow-nudge"
+      file: "commands/speckit.trasgospec.flow-nudge.md"
+      description: "Suggest PR lifecycle actions at workflow milestones."
+      aliases: ["trasgospec.flow-nudge"]
+    - name: "speckit.trasgospec.discovery"
+      file: "commands/speckit.trasgospec.discovery.md"
+      description: "Guide interactive problem exploration and produce a structured PRD."
+      aliases: ["trasgospec.discovery"]
+    - name: "speckit.trasgospec.status"
+      file: "commands/speckit.trasgospec.status.md"
+      description: "Set, validate, or revert lifecycle status on a feature."
+      aliases: ["trasgospec.status"]
+    - name: "speckit.trasgospec.commit"
+      file: "commands/speckit.trasgospec.commit.md"
+      description: "Auto-commit and push repository changes with structured messages."
+      aliases: ["trasgospec.commit"]
+
+hooks:
+  before_specify:
+    command: "speckit.trasgospec.status"
+    optional: false
+    priority: 5
+    description: "Lifecycle — advance status to Planning"
+  after_specify:
+    - command: "speckit.trasgospec.flow-gate"
+      optional: false
+      description: "GitHub Flow — create/switch to feature branch after spec creation"
+    - command: "speckit.trasgospec.commit"
+      optional: false
+      priority: 20
+      description: "Audit — auto-commit and push"
+  before_clarify:
+    command: "speckit.trasgospec.flow-gate"
+    optional: false
+    description: "GitHub Flow — require feature branch"
+  before_checklist:
+    command: "speckit.trasgospec.flow-gate"
+    optional: false
+    description: "GitHub Flow — require feature branch"
+  before_plan:
+    command: "speckit.trasgospec.flow-gate"
+    optional: false
+    description: "GitHub Flow — require feature branch"
+  before_tasks:
+    - command: "speckit.trasgospec.flow-gate"
+      optional: false
+      priority: 5
+      description: "GitHub Flow — require feature branch"
+    - command: "speckit.trasgospec.status"
+      optional: false
+      priority: 10
+      description: "Lifecycle — advance status to In Progress"
+  before_implement:
+    command: "speckit.trasgospec.flow-gate"
+    optional: false
+    description: "GitHub Flow — require feature branch"
+  before_converge:
+    command: "speckit.trasgospec.flow-gate"
+    optional: false
+    description: "GitHub Flow — require feature branch"
+  before_analyze:
+    command: "speckit.trasgospec.flow-gate"
+    optional: false
+    description: "GitHub Flow — require feature branch"
+  before_discovery:
+    command: "speckit.trasgospec.flow-gate"
+    optional: false
+    description: "GitHub Flow — require feature branch"
+  after_discovery:
+    - command: "speckit.trasgospec.status"
+      optional: false
+      priority: 5
+      description: "Lifecycle — advance status to Opportunity"
+    - command: "speckit.trasgospec.flow-nudge"
+      optional: true
+      priority: 10
+      description: "Suggest next steps after discovery"
+    - command: "speckit.trasgospec.commit"
+      optional: false
+      priority: 20
+      description: "Audit — auto-commit and push"
+  after_clarify:
+    command: "speckit.trasgospec.commit"
+    optional: false
+    priority: 20
+    description: "Audit — auto-commit and push"
+  after_checklist:
+    command: "speckit.trasgospec.commit"
+    optional: false
+    priority: 20
+    description: "Audit — auto-commit and push"
+  after_plan:
+    - command: "speckit.trasgospec.status"
+      optional: false
+      priority: 5
+      description: "Lifecycle — advance status to Ready to Dev"
+    - command: "speckit.trasgospec.flow-nudge"
+      optional: true
+      priority: 10
+      description: "Suggest opening a draft PR for this feature"
+    - command: "speckit.trasgospec.commit"
+      optional: false
+      priority: 20
+      description: "Audit — auto-commit and push"
+  after_tasks:
+    command: "speckit.trasgospec.commit"
+    optional: false
+    priority: 20
+    description: "Audit — auto-commit and push"
+  after_implement:
+    - command: "speckit.trasgospec.status"
+      optional: false
+      priority: 5
+      description: "Lifecycle — advance status to In Review"
+    - command: "speckit.trasgospec.flow-nudge"
+      optional: true
+      priority: 10
+      description: "Suggest marking PR as ready for review"
+    - command: "speckit.trasgospec.commit"
+      optional: false
+      priority: 20
+      description: "Audit — auto-commit and push"
+  after_converge:
+    command: "speckit.trasgospec.commit"
+    optional: false
+    priority: 20
+    description: "Audit — auto-commit and push"
+  after_analyze:
+    command: "speckit.trasgospec.flow-nudge"
+    optional: true
+    description: "Suggest PR is ready for final review"

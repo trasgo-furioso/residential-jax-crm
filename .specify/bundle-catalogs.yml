@@ -1,0 +1,6 @@
+schema_version: '1.0'
+catalogs:
+- id: raw-githubusercontent-com-catalog
+  url: https://raw.githubusercontent.com/trasgo-furioso/trasgo-spec-kit/main/catalog.json
+  priority: 10
+  install_policy: install-allowed

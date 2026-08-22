@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0",
+  "extensions": {
+    "trasgospec": {
+      "version": "0.8.0",
+      "source": "local",
+      "manifest_hash": "sha256:b1fdc06f95cfce44f3f453c000f326fc482bc179ab89944054101d2f56b276c7",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "claude": [
+          "speckit.trasgospec.hello",
+          "trasgospec.hello",
+          "speckit.trasgospec.roadmap",
+          "trasgospec.roadmap",
+          "speckit.trasgospec.flow-gate",
+          "trasgospec.flow-gate",
+          "speckit.trasgospec.flow-nudge",
+          "trasgospec.flow-nudge",
+          "speckit.trasgospec.discovery",
+          "trasgospec.discovery",
+          "speckit.trasgospec.status",
+          "trasgospec.status",
+          "speckit.trasgospec.commit",
+          "trasgospec.commit"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-08-20T14:16:46.150482+00:00"
+    }
+  }
+}

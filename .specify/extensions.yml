@@ -1,0 +1,231 @@
+installed:
+- trasgospec
+settings:
+  auto_execute_hooks: true
+hooks:
+  before_specify:
+  - extension: trasgospec
+    command: speckit.trasgospec.status
+    enabled: true
+    optional: false
+    priority: 5
+    prompt: Execute speckit.trasgospec.status?
+    description: Lifecycle — advance status to Planning
+    condition: null
+  after_specify:
+  - extension: trasgospec
+    command: speckit.trasgospec.flow-gate
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Execute speckit.trasgospec.flow-gate?
+    description: GitHub Flow — create/switch to feature branch after spec creation
+    condition: null
+  - extension: trasgospec
+    command: speckit.trasgospec.commit
+    enabled: true
+    optional: false
+    priority: 20
+    prompt: Execute speckit.trasgospec.commit?
+    description: Audit — auto-commit and push
+    condition: null
+  before_clarify:
+  - extension: trasgospec
+    command: speckit.trasgospec.flow-gate
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Execute speckit.trasgospec.flow-gate?
+    description: GitHub Flow — require feature branch
+    condition: null
+  before_checklist:
+  - extension: trasgospec
+    command: speckit.trasgospec.flow-gate
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Execute speckit.trasgospec.flow-gate?
+    description: GitHub Flow — require feature branch
+    condition: null
+  before_plan:
+  - extension: trasgospec
+    command: speckit.trasgospec.flow-gate
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Execute speckit.trasgospec.flow-gate?
+    description: GitHub Flow — require feature branch
+    condition: null
+  before_tasks:
+  - extension: trasgospec
+    command: speckit.trasgospec.flow-gate
+    enabled: true
+    optional: false
+    priority: 5
+    prompt: Execute speckit.trasgospec.flow-gate?
+    description: GitHub Flow — require feature branch
+    condition: null
+  - extension: trasgospec
+    command: speckit.trasgospec.status
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Execute speckit.trasgospec.status?
+    description: Lifecycle — advance status to In Progress
+    condition: null
+  before_implement:
+  - extension: trasgospec
+    command: speckit.trasgospec.flow-gate
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Execute speckit.trasgospec.flow-gate?
+    description: GitHub Flow — require feature branch
+    condition: null
+  before_converge:
+  - extension: trasgospec
+    command: speckit.trasgospec.flow-gate
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Execute speckit.trasgospec.flow-gate?
+    description: GitHub Flow — require feature branch
+    condition: null
+  before_analyze:
+  - extension: trasgospec
+    command: speckit.trasgospec.flow-gate
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Execute speckit.trasgospec.flow-gate?
+    description: GitHub Flow — require feature branch
+    condition: null
+  before_discovery:
+  - extension: trasgospec
+    command: speckit.trasgospec.flow-gate
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Execute speckit.trasgospec.flow-gate?
+    description: GitHub Flow — require feature branch
+    condition: null
+  after_discovery:
+  - extension: trasgospec
+    command: speckit.trasgospec.status
+    enabled: true
+    optional: false
+    priority: 5
+    prompt: Execute speckit.trasgospec.status?
+    description: Lifecycle — advance status to Opportunity
+    condition: null
+  - extension: trasgospec
+    command: speckit.trasgospec.flow-nudge
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Execute speckit.trasgospec.flow-nudge?
+    description: Suggest next steps after discovery
+    condition: null
+  - extension: trasgospec
+    command: speckit.trasgospec.commit
+    enabled: true
+    optional: false
+    priority: 20
+    prompt: Execute speckit.trasgospec.commit?
+    description: Audit — auto-commit and push
+    condition: null
+  after_clarify:
+  - extension: trasgospec
+    command: speckit.trasgospec.commit
+    enabled: true
+    optional: false
+    priority: 20
+    prompt: Execute speckit.trasgospec.commit?
+    description: Audit — auto-commit and push
+    condition: null
+  after_checklist:
+  - extension: trasgospec
+    command: speckit.trasgospec.commit
+    enabled: true
+    optional: false
+    priority: 20
+    prompt: Execute speckit.trasgospec.commit?
+    description: Audit — auto-commit and push
+    condition: null
+  after_plan:
+  - extension: trasgospec
+    command: speckit.trasgospec.status
+    enabled: true
+    optional: false
+    priority: 5
+    prompt: Execute speckit.trasgospec.status?
+    description: Lifecycle — advance status to Ready to Dev
+    condition: null
+  - extension: trasgospec
+    command: speckit.trasgospec.flow-nudge
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Execute speckit.trasgospec.flow-nudge?
+    description: Suggest opening a draft PR for this feature
+    condition: null
+  - extension: trasgospec
+    command: speckit.trasgospec.commit
+    enabled: true
+    optional: false
+    priority: 20
+    prompt: Execute speckit.trasgospec.commit?
+    description: Audit — auto-commit and push
+    condition: null
+  after_tasks:
+  - extension: trasgospec
+    command: speckit.trasgospec.commit
+    enabled: true
+    optional: false
+    priority: 20
+    prompt: Execute speckit.trasgospec.commit?
+    description: Audit — auto-commit and push
+    condition: null
+  after_implement:
+  - extension: trasgospec
+    command: speckit.trasgospec.status
+    enabled: true
+    optional: false
+    priority: 5
+    prompt: Execute speckit.trasgospec.status?
+    description: Lifecycle — advance status to In Review
+    condition: null
+  - extension: trasgospec
+    command: speckit.trasgospec.flow-nudge
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Execute speckit.trasgospec.flow-nudge?
+    description: Suggest marking PR as ready for review
+    condition: null
+  - extension: trasgospec
+    command: speckit.trasgospec.commit
+    enabled: true
+    optional: false
+    priority: 20
+    prompt: Execute speckit.trasgospec.commit?
+    description: Audit — auto-commit and push
+    condition: null
+  after_converge:
+  - extension: trasgospec
+    command: speckit.trasgospec.commit
+    enabled: true
+    optional: false
+    priority: 20
+    prompt: Execute speckit.trasgospec.commit?
+    description: Audit — auto-commit and push
+    condition: null
+  after_analyze:
+  - extension: trasgospec
+    command: speckit.trasgospec.flow-nudge
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Execute speckit.trasgospec.flow-nudge?
+    description: Suggest PR is ready for final review
+    condition: null

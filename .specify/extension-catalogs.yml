@@ -1,0 +1,6 @@
+catalogs:
+- name: trasgospec
+  url: https://raw.githubusercontent.com/trasgo-furioso/trasgo-spec-kit/main/extension-catalog.json
+  priority: 10
+  install_allowed: true
+  description: ''
