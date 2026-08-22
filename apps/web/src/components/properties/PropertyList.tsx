@@ -11,12 +11,14 @@ interface PropertyRow {
   current_owner_name: string;
   ownership_tenure_years: number;
   roof_age_years: number;
+  match_score?: number;
 }
 
 interface PropertyListProps {
   properties: PropertyRow[];
   onPropertySelect?: (parcelId: string) => void;
   selectedParcelId?: string | null;
+  showMatchScore?: boolean;
 }
 
 type SortField =
@@ -25,7 +27,8 @@ type SortField =
   | 'current_owner_name'
   | 'assessed_value'
   | 'ownership_tenure_years'
-  | 'roof_age_years';
+  | 'roof_age_years'
+  | 'match_score';
 
 type SortDir = 'asc' | 'desc';
 
@@ -67,10 +70,33 @@ const tdStyle: React.CSSProperties = {
   maxWidth: 200,
 };
 
+function MatchBadge({ score }: { score: number }) {
+  const bg = score >= 80 ? '#dcfce7' : score >= 50 ? '#fef9c3' : '#fee2e2';
+  const color = score >= 80 ? '#166534' : score >= 50 ? '#854d0e' : '#dc2626';
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        padding: '2px 6px',
+        fontSize: 11,
+        fontWeight: 700,
+        borderRadius: 10,
+        backgroundColor: bg,
+        color,
+        minWidth: 32,
+        textAlign: 'center',
+      }}
+    >
+      {score}%
+    </span>
+  );
+}
+
 export default function PropertyList({
   properties,
   onPropertySelect,
   selectedParcelId,
+  showMatchScore,
 }: PropertyListProps) {
   const [sortField, setSortField] = useState<SortField>('parcel_id');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -221,6 +247,14 @@ export default function PropertyList({
               >
                 Roof Age (yr){sortIndicator('roof_age_years')}
               </th>
+              {showMatchScore && (
+                <th
+                  style={{ ...thStyle, textAlign: 'center' }}
+                  onClick={() => handleSort('match_score')}
+                >
+                  Match{sortIndicator('match_score')}
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -262,13 +296,18 @@ export default function PropertyList({
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
                     {p.roof_age_years}
                   </td>
+                  {showMatchScore && (
+                    <td style={{ ...tdStyle, textAlign: 'center' }}>
+                      {p.match_score != null ? <MatchBadge score={p.match_score} /> : '-'}
+                    </td>
+                  )}
                 </tr>
               );
             })}
             {paged.length === 0 && (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={showMatchScore ? 7 : 6}
                   style={{
                     ...tdStyle,
                     textAlign: 'center',

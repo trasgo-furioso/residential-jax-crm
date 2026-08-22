@@ -18,14 +18,26 @@ interface PropertyMapProps {
   properties: GeoJSONFeatureCollection;
   onPropertySelect?: (parcelId: string) => void;
   selectedParcelId?: string | null;
+  matchScores?: boolean;
+  mapRefCallback?: (ref: MapRef | null) => void;
 }
 
 export default function PropertyMap({
   properties,
   onPropertySelect,
   selectedParcelId,
+  matchScores,
+  mapRefCallback,
 }: PropertyMapProps) {
   const mapRef = useRef<MapRef>(null);
+
+  const handleMapRef = useCallback(
+    (instance: MapRef | null) => {
+      (mapRef as React.MutableRefObject<MapRef | null>).current = instance;
+      mapRefCallback?.(instance);
+    },
+    [mapRefCallback],
+  );
 
   const handleClick = useCallback(
     (event: MapLayerMouseEvent) => {
@@ -34,7 +46,7 @@ export default function PropertyMap({
 
       const feature = features[0];
 
-      // Handle cluster click — zoom in
+      // Handle cluster click -- zoom in
       if (feature.properties?.cluster) {
         const clusterId = feature.properties.cluster_id as number;
         const source = mapRef.current?.getSource('properties') as
@@ -61,10 +73,29 @@ export default function PropertyMap({
     [onPropertySelect],
   );
 
+  // Color expression: when match scores are available, color by score
+  const circleColor = matchScores
+    ? [
+        'case',
+        ['==', ['get', 'parcel_id'], selectedParcelId ?? ''],
+        '#e55e5e',
+        ['>=', ['coalesce', ['get', 'match_score'], 0], 80],
+        '#22c55e',
+        ['>=', ['coalesce', ['get', 'match_score'], 0], 50],
+        '#eab308',
+        '#ef4444',
+      ]
+    : [
+        'case',
+        ['==', ['get', 'parcel_id'], selectedParcelId ?? ''],
+        '#e55e5e',
+        '#3b82f6',
+      ];
+
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <Map
-        ref={mapRef}
+        ref={handleMapRef}
         initialViewState={JACKSONVILLE_CENTER}
         style={{ width: '100%', height: '100%' }}
         mapStyle={MAP_STYLE}
@@ -134,12 +165,7 @@ export default function PropertyMap({
             type="circle"
             filter={['!', ['has', 'point_count']]}
             paint={{
-              'circle-color': [
-                'case',
-                ['==', ['get', 'parcel_id'], selectedParcelId ?? ''],
-                '#e55e5e',
-                '#3b82f6',
-              ],
+              'circle-color': circleColor as maplibregl.ExpressionSpecification,
               'circle-radius': [
                 'case',
                 ['==', ['get', 'parcel_id'], selectedParcelId ?? ''],

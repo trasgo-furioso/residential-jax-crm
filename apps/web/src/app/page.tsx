@@ -1,11 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { queryProperties } from '@/lib/duckdb';
-import type { GeoJSONFeatureCollection } from '@/lib/duckdb';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { queryProperties, queryPropertiesByCriteria } from '@/lib/duckdb';
+import type { GeoJSONFeatureCollection, CriteriaFilters } from '@/lib/duckdb';
+import type { MapRef } from 'react-map-gl/maplibre';
 import PropertyMap from '@/components/map/PropertyMap';
 import PropertyList from '@/components/properties/PropertyList';
 import PropertyDetail from '@/components/properties/PropertyDetail';
+import SearchCriteria from '@/components/properties/SearchCriteria';
+import DrawControl from '@/components/map/DrawControl';
 
 type ViewMode = 'split' | 'map' | 'list';
 
@@ -29,6 +32,7 @@ interface PropertyRow {
   provenance_sources: string;
   provenance_last_run: string;
   provenance_timestamps: string;
+  match_score?: number;
 }
 
 const EMPTY_GEOJSON: GeoJSONFeatureCollection = {
@@ -79,14 +83,73 @@ function ToggleButton({
   );
 }
 
+function MatchScoreBadge({ score }: { score: number }) {
+  const bg =
+    score >= 80 ? '#dcfce7' : score >= 50 ? '#fef9c3' : '#fee2e2';
+  const color =
+    score >= 80 ? '#166534' : score >= 50 ? '#854d0e' : '#dc2626';
+
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        padding: '2px 6px',
+        fontSize: 11,
+        fontWeight: 700,
+        borderRadius: 10,
+        backgroundColor: bg,
+        color,
+        minWidth: 32,
+        textAlign: 'center',
+      }}
+    >
+      {score}%
+    </span>
+  );
+}
+
+function featureToRow(f: GeoJSONFeatureCollection['features'][number]): PropertyRow {
+  return {
+    parcel_id: f.properties.parcel_id as string,
+    address_street: f.properties.address_street as string,
+    address_city: f.properties.address_city as string,
+    address_zip: f.properties.address_zip as string,
+    assessed_value: f.properties.assessed_value as number,
+    market_value: f.properties.market_value as number,
+    current_owner_name: f.properties.current_owner_name as string,
+    year_built: f.properties.year_built as number,
+    sqft: f.properties.sqft as number,
+    roof_age_years: f.properties.roof_age_years as number,
+    ownership_tenure_years: f.properties.ownership_tenure_years as number,
+    is_regional_owner: f.properties.is_regional_owner as boolean,
+    water_proximity_ft: f.properties.water_proximity_ft as number,
+    transit_distance_mi: f.properties.transit_distance_mi as number,
+    lat: (f.geometry.coordinates as [number, number])[1],
+    lng: (f.geometry.coordinates as [number, number])[0],
+    provenance_sources: (f.properties.provenance_sources as string) ?? '',
+    provenance_last_run: (f.properties.provenance_last_run as string) ?? '',
+    provenance_timestamps: (f.properties.provenance_timestamps as string) ?? '',
+    match_score: f.properties.match_score as number | undefined,
+  };
+}
+
 export default function Dashboard() {
   const [geojson, setGeojson] = useState<GeoJSONFeatureCollection>(EMPTY_GEOJSON);
+  const [allGeojson, setAllGeojson] = useState<GeoJSONFeatureCollection>(EMPTY_GEOJSON);
   const [properties, setProperties] = useState<PropertyRow[]>([]);
   const [selectedParcelId, setSelectedParcelId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('split');
   const [loading, setLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeFilters, setActiveFilters] = useState<CriteriaFilters | null>(null);
+  const [drawnGeometry, setDrawnGeometry] = useState<GeoJSON.Geometry | null>(null);
+  const mapRefHolder = useRef<MapRef | null>(null);
+  const handleMapRefCallback = useCallback((instance: MapRef | null) => {
+    mapRefHolder.current = instance;
+  }, []);
 
+  // Initial load
   useEffect(() => {
     let cancelled = false;
 
@@ -97,31 +160,9 @@ export default function Dashboard() {
         const data = await queryProperties();
         if (cancelled) return;
 
+        setAllGeojson(data);
         setGeojson(data);
-
-        // Extract flat property rows from GeoJSON features
-        const rows: PropertyRow[] = data.features.map((f) => ({
-          parcel_id: f.properties.parcel_id as string,
-          address_street: f.properties.address_street as string,
-          address_city: f.properties.address_city as string,
-          address_zip: f.properties.address_zip as string,
-          assessed_value: f.properties.assessed_value as number,
-          market_value: f.properties.market_value as number,
-          current_owner_name: f.properties.current_owner_name as string,
-          year_built: f.properties.year_built as number,
-          sqft: f.properties.sqft as number,
-          roof_age_years: f.properties.roof_age_years as number,
-          ownership_tenure_years: f.properties.ownership_tenure_years as number,
-          is_regional_owner: f.properties.is_regional_owner as boolean,
-          water_proximity_ft: f.properties.water_proximity_ft as number,
-          transit_distance_mi: f.properties.transit_distance_mi as number,
-          lat: (f.geometry.coordinates as [number, number])[1],
-          lng: (f.geometry.coordinates as [number, number])[0],
-          provenance_sources: (f.properties.provenance_sources as string) ?? '',
-          provenance_last_run: (f.properties.provenance_last_run as string) ?? '',
-          provenance_timestamps: (f.properties.provenance_timestamps as string) ?? '',
-        }));
-        setProperties(rows);
+        setProperties(data.features.map(featureToRow));
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Failed to load properties');
@@ -145,6 +186,67 @@ export default function Dashboard() {
     if (!selectedParcelId) return null;
     return properties.find((p) => p.parcel_id === selectedParcelId) ?? null;
   }, [selectedParcelId, properties]);
+
+  // Apply criteria search via client-side DuckDB
+  const handleApplyCriteria = useCallback(async (filters: CriteriaFilters) => {
+    // Check if any filter is actually set
+    const hasFilters = Object.values(filters).some((v) => {
+      if (v == null) return false;
+      if (Array.isArray(v) && v.length === 0) return false;
+      return true;
+    });
+
+    if (!hasFilters) {
+      // No filters, show all
+      setGeojson(allGeojson);
+      setProperties(allGeojson.features.map(featureToRow));
+      setActiveFilters(null);
+      return;
+    }
+
+    setSearching(true);
+    setActiveFilters(filters);
+    try {
+      const data = await queryPropertiesByCriteria(filters);
+
+      // If geographic bounds drawn, filter by bounding box
+      let filtered = data;
+      if (drawnGeometry && drawnGeometry.type === 'Polygon') {
+        const coords = drawnGeometry.coordinates[0];
+        const lngs = coords.map((c) => c[0]);
+        const lats = coords.map((c) => c[1]);
+        const minLng = Math.min(...lngs);
+        const maxLng = Math.max(...lngs);
+        const minLat = Math.min(...lats);
+        const maxLat = Math.max(...lats);
+
+        filtered = {
+          ...data,
+          features: data.features.filter((f) => {
+            const [lng, lat] = f.geometry.coordinates;
+            return lng >= minLng && lng <= maxLng && lat >= minLat && lat <= maxLat;
+          }),
+        };
+      }
+
+      setGeojson(filtered);
+      setProperties(filtered.features.map(featureToRow));
+    } catch (err) {
+      console.error('Criteria search failed:', err);
+    } finally {
+      setSearching(false);
+    }
+  }, [allGeojson, drawnGeometry]);
+
+  const handleClearCriteria = useCallback(() => {
+    setActiveFilters(null);
+    setGeojson(allGeojson);
+    setProperties(allGeojson.features.map(featureToRow));
+  }, [allGeojson]);
+
+  const handleGeometryChange = useCallback((geometry: GeoJSON.Geometry | null) => {
+    setDrawnGeometry(geometry);
+  }, []);
 
   const showMap = viewMode === 'split' || viewMode === 'map';
   const showList = viewMode === 'split' || viewMode === 'list';
@@ -219,9 +321,28 @@ export default function Dashboard() {
           padding: '0 0 12px 0',
         }}
       >
-        <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#1f2937' }}>
-          Property Discovery
-        </h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#1f2937' }}>
+            Property Discovery
+          </h1>
+          {activeFilters && (
+            <span
+              style={{
+                padding: '2px 8px',
+                fontSize: 11,
+                fontWeight: 600,
+                backgroundColor: '#dbeafe',
+                color: '#1d4ed8',
+                borderRadius: 10,
+              }}
+            >
+              Filtered: {properties.length.toLocaleString()} results
+            </span>
+          )}
+          {searching && (
+            <span style={{ fontSize: 12, color: '#6b7280' }}>Searching...</span>
+          )}
+        </div>
         <div style={{ display: 'flex' }}>
           <ToggleButton
             label="Map Only"
@@ -261,17 +382,24 @@ export default function Dashboard() {
               borderRadius: 8,
               overflow: 'hidden',
               boxShadow: '0 1px 4px rgba(0, 0, 0, 0.08)',
+              position: 'relative',
             }}
           >
             <PropertyMap
               properties={geojson}
               onPropertySelect={handlePropertySelect}
               selectedParcelId={selectedParcelId}
+              matchScores={activeFilters != null}
+              mapRefCallback={handleMapRefCallback}
+            />
+            <DrawControl
+              mapRef={mapRefHolder}
+              onGeometryChange={handleGeometryChange}
             />
           </div>
         )}
 
-        {/* Right panel: list + detail */}
+        {/* Right panel: search + detail + list */}
         {(showList || selectedProperty) && (
           <div
             style={{
@@ -282,12 +410,15 @@ export default function Dashboard() {
               minHeight: 0,
             }}
           >
+            {/* Search Criteria panel */}
+            <SearchCriteria onApply={handleApplyCriteria} onClear={handleClearCriteria} />
+
             {/* Detail panel (when a property is selected) */}
             {selectedProperty && (
               <div
                 style={{
                   flexShrink: 0,
-                  maxHeight: selectedProperty && showList ? '45%' : '100%',
+                  maxHeight: selectedProperty && showList ? '35%' : '100%',
                   overflowY: 'auto',
                 }}
               >
@@ -295,6 +426,22 @@ export default function Dashboard() {
                   property={selectedProperty}
                   onClose={() => setSelectedParcelId(null)}
                 />
+                {selectedProperty.match_score != null && (
+                  <div
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#ffffff',
+                      borderRadius: '0 0 8px 8px',
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+                      marginTop: -8,
+                    }}
+                  >
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', marginRight: 8 }}>
+                      Match Score:
+                    </span>
+                    <MatchScoreBadge score={selectedProperty.match_score} />
+                  </div>
+                )}
               </div>
             )}
 
@@ -305,6 +452,7 @@ export default function Dashboard() {
                   properties={properties}
                   onPropertySelect={handlePropertySelect}
                   selectedParcelId={selectedParcelId}
+                  showMatchScore={activeFilters != null}
                 />
               </div>
             )}

@@ -1,5 +1,6 @@
 import { router, publicProcedure } from './trpc.js';
 import { propertiesRouter } from './properties.js';
+import { criteriaRouter } from './criteria.js';
 
 export { router, publicProcedure } from './trpc.js';
 
@@ -13,6 +14,7 @@ const healthRouter = router({
 export const appRouter = router({
   health: healthRouter,
   properties: propertiesRouter,
+  criteria: criteriaRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -111,3 +111,153 @@ export async function queryPropertyByParcelId(
   const rows = result.toArray().map((row: Record<string, unknown>) => ({ ...row }));
   return rows.length > 0 ? rows[0] : null;
 }
+
+// ── Criteria-based search (client-side DuckDB) ────────────────────────────
+
+export interface CriteriaFilters {
+  ownership_tenure_min_years?: number;
+  roof_age_min_years?: number;
+  zip_codes?: string[];
+  assessed_value_min?: number;
+  assessed_value_max?: number;
+  is_regional_owner?: boolean;
+  water_proximity_max_ft?: number;
+}
+
+export interface CriterionResult {
+  criterion: string;
+  met: boolean;
+}
+
+export interface MatchResult {
+  score: number;
+  total: number;
+  percentage: number;
+  breakdown: CriterionResult[];
+}
+
+/**
+ * Client-side criteria evaluator (mirrors server-side criteria-matcher).
+ */
+export function evaluateMatch(
+  property: Record<string, unknown>,
+  filters: CriteriaFilters,
+): MatchResult {
+  const breakdown: CriterionResult[] = [];
+
+  if (filters.ownership_tenure_min_years != null) {
+    breakdown.push({
+      criterion: 'ownership_tenure_min_years',
+      met: ((property.ownership_tenure_years as number) ?? 0) >= filters.ownership_tenure_min_years,
+    });
+  }
+
+  if (filters.roof_age_min_years != null) {
+    breakdown.push({
+      criterion: 'roof_age_min_years',
+      met: ((property.roof_age_years as number) ?? 0) >= filters.roof_age_min_years,
+    });
+  }
+
+  if (filters.zip_codes != null && filters.zip_codes.length > 0) {
+    breakdown.push({
+      criterion: 'zip_codes',
+      met: filters.zip_codes.includes((property.address_zip as string) ?? ''),
+    });
+  }
+
+  if (filters.assessed_value_min != null) {
+    breakdown.push({
+      criterion: 'assessed_value_min',
+      met: ((property.assessed_value as number) ?? 0) >= filters.assessed_value_min,
+    });
+  }
+
+  if (filters.assessed_value_max != null) {
+    breakdown.push({
+      criterion: 'assessed_value_max',
+      met: ((property.assessed_value as number) ?? Infinity) <= filters.assessed_value_max,
+    });
+  }
+
+  if (filters.is_regional_owner != null) {
+    breakdown.push({
+      criterion: 'is_regional_owner',
+      met: property.is_regional_owner === true,
+    });
+  }
+
+  if (filters.water_proximity_max_ft != null) {
+    breakdown.push({
+      criterion: 'water_proximity_max_ft',
+      met: ((property.water_proximity_ft as number) ?? Infinity) <= filters.water_proximity_max_ft,
+    });
+  }
+
+  const total = breakdown.length;
+  const score = breakdown.filter((b) => b.met).length;
+  const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
+
+  return { score, total, percentage, breakdown };
+}
+
+/**
+ * Query properties filtered by criteria using client-side DuckDB,
+ * then score each result against the criteria.
+ * Returns GeoJSON FeatureCollection with match scores in properties.
+ */
+export async function queryPropertiesByCriteria(
+  filters: CriteriaFilters,
+): Promise<GeoJSONFeatureCollection> {
+  const conn = await ensureView();
+
+  const conditions: string[] = [];
+
+  if (filters.ownership_tenure_min_years != null) {
+    conditions.push(`ownership_tenure_years >= ${Number(filters.ownership_tenure_min_years)}`);
+  }
+  if (filters.roof_age_min_years != null) {
+    conditions.push(`roof_age_years >= ${Number(filters.roof_age_min_years)}`);
+  }
+  if (filters.zip_codes != null && filters.zip_codes.length > 0) {
+    const escaped = filters.zip_codes.map((z) => `'${z.replace(/'/g, "''")}'`).join(', ');
+    conditions.push(`address_zip IN (${escaped})`);
+  }
+  if (filters.assessed_value_min != null) {
+    conditions.push(`assessed_value >= ${Number(filters.assessed_value_min)}`);
+  }
+  if (filters.assessed_value_max != null) {
+    conditions.push(`assessed_value <= ${Number(filters.assessed_value_max)}`);
+  }
+  if (filters.is_regional_owner != null) {
+    conditions.push(`is_regional_owner = ${filters.is_regional_owner}`);
+  }
+  if (filters.water_proximity_max_ft != null) {
+    conditions.push(`water_proximity_ft <= ${Number(filters.water_proximity_max_ft)}`);
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const sql = `SELECT * FROM properties ${where}`;
+  const result = await conn.query(sql);
+  const rows = result.toArray().map((row: Record<string, unknown>) => ({ ...row }));
+
+  const features: GeoJSONFeature[] = rows.map((row) => {
+    const { lat, lng, ...rest } = row as Record<string, unknown> & { lat: number; lng: number };
+    const match = evaluateMatch(rest, filters);
+    return {
+      type: 'Feature' as const,
+      geometry: {
+        type: 'Point' as const,
+        coordinates: [lng, lat],
+      },
+      properties: { ...rest, match_score: match.percentage, match_breakdown: match.breakdown },
+    };
+  });
+
+  // Sort by match score descending
+  features.sort(
+    (a, b) => (b.properties.match_score as number) - (a.properties.match_score as number),
+  );
+
+  return { type: 'FeatureCollection', features };
+}
