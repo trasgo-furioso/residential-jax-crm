@@ -17,6 +17,7 @@ import type {
   OpportunityStage,
   OpportunityFilters,
 } from '@/lib/opportunities-api';
+import OutreachPanel from '@/components/opportunities/OutreachPanel';
 
 const STAGE_OPTIONS: { value: string; label: string }[] = [
   { value: '', label: 'All Stages' },
@@ -843,42 +844,10 @@ export default function OpportunitiesPage() {
                 )}
               </div>
 
-              {/* History Section (already shown in StageTracker, but also as standalone if needed) */}
-              {detail.outreach.length > 0 && (
-                <div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: '#6b7280',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.08em',
-                      marginBottom: 10,
-                      paddingBottom: 4,
-                      borderBottom: '1px solid #e5e7eb',
-                    }}
-                  >
-                    Outreach
-                  </div>
-                  {detail.outreach.map((rec) => (
-                    <div
-                      key={rec.id}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        padding: '6px 0',
-                        borderBottom: '1px solid #f3f4f6',
-                        fontSize: 13,
-                      }}
-                    >
-                      <span>
-                        {rec.channel} to {rec.recipient}
-                      </span>
-                      <span style={{ color: '#6b7280' }}>{rec.status}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {/* Outreach Campaigns Section (T047) */}
+              <div style={{ marginBottom: 24 }}>
+                <OutreachPanel opportunityId={detail.id} />
+              </div>
             </div>
           ) : (
             <div

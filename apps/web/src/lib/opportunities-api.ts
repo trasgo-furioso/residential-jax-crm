@@ -171,3 +171,20 @@ export async function createTask(data: {
 export async function toggleTask(id: string): Promise<TaskRecord> {
   return trpcMutate<TaskRecord>('opportunities.tasks.toggle', { id });
 }
+
+// ── Outreach API functions ──────────────────────────────────────────────
+
+export async function listOutreach(
+  opportunity_id: string,
+): Promise<OutreachRecord[]> {
+  return trpcQuery<OutreachRecord[]>('outreach.list', { opportunity_id });
+}
+
+export async function createOutreach(data: {
+  opportunity_id: string;
+  channel: 'email' | 'sms' | 'direct_mail';
+  recipient: string;
+  subject?: string;
+}): Promise<OutreachRecord> {
+  return trpcMutate<OutreachRecord>('outreach.create', data);
+}
