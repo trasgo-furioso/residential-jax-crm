@@ -2,79 +2,100 @@
 
 **Date**: 2026-08-22 | **Feature**: specs/003-residential-jax-crm
 
+## Project Architecture
+
+**Decision**: Turborepo monorepo with tRPC + Lambda backend and Next.js Amplify frontend
+
+**Rationale**: Constitution mandates AWS as primary cloud with CDK as the only IaC tool. The `metagross` agent and `build-frontend-backends` skill prescribe a Turborepo monorepo with `apps/web/` (Amplify), `apps/api/` (tRPC + Lambda + CDK), and shared `packages/`. This is the Golden Path standard — no adaptation needed.
+
+**Alternatives considered**:
+- Vercel (Next.js native) — violates constitution: AWS is primary cloud, CDK is mandatory IaC
+- Single Next.js app with Route Handlers — violates kit pattern: tRPC on Lambda is the standard backend
+
+## Package Manager
+
+**Decision**: pnpm with workspace protocol
+
+**Rationale**: `build-frontend-backends` mandates pnpm with `workspace:*` protocol for internal dependencies. Turborepo orchestrates tasks via `turbo.json`.
+
 ## Map Library
 
 **Decision**: MapLibre GL JS
 
-**Rationale**: Open-source fork of Mapbox GL JS with no API key requirement. Supports clustering, GeoJSON overlays, polygon drawing, and smooth performance with large datasets. Free to use commercially. MapLibre React bindings (`react-map-gl` with MapLibre adapter) integrate well with Next.js.
+**Rationale**: Open-source fork of Mapbox GL JS with no API key requirement. Supports clustering, GeoJSON overlays, polygon drawing, and smooth performance with large datasets. React bindings via `react-map-gl` with MapLibre adapter.
 
 **Alternatives considered**:
-- Mapbox GL JS — excellent but requires API key and usage-based pricing, adds cost
-- Leaflet — simpler but weaker performance with 200k+ markers, no native vector tile support
+- Mapbox GL JS — requires API key and usage-based pricing
+- Leaflet — weaker performance with 200k+ markers, no native vector tiles
 - Google Maps — requires API key, usage fees, less customizable
 
-## Client-Side Property Querying
+## Property Data Querying
 
-**Decision**: DuckDB-WASM reading Parquet directly from IPFS via httpfs
+**Decision**: DuckDB for both client-side (WASM in browser) and server-side (Node bindings in Lambda) querying of Parquet from IPFS
 
-**Rationale**: The pipeline publishes a query-table Parquet file at `oracle-query-table-duval` IPNS label. DuckDB-WASM can read this directly in the browser via HTTP range requests, enabling SQL queries on ~245k properties without any server-side database. This satisfies FR-016 (no Oracle hosted-DB cost). The Parquet file is typically 10-50MB for 245k records with the schema defined in the pipeline data model.
+**Rationale**: The pipeline publishes a query-table Parquet file at the `oracle-query-table-duval` IPNS label. DuckDB reads this via HTTP range requests (httpfs), enabling SQL queries on ~245k properties without any hosted database. Client-side DuckDB-WASM powers the map and search UI. Server-side DuckDB Node powers webhook matching and RAG agent queries in Lambda. This satisfies FR-016 (no Oracle hosted-DB cost).
 
 **Alternatives considered**:
-- Server-side DuckDB (Node.js) — works but adds server memory requirements; WASM keeps it stateless
-- SQLite WASM — good but lacks Parquet httpfs support; would require data conversion
-- Neon Postgres for property data — violates FR-016 (would shift DB cost to Oracle pipeline relationship)
+- Client-only DuckDB-WASM — insufficient: webhook handler and agent run server-side in Lambda
+- Neon Postgres for property data — violates FR-016 (would shift DB cost to Oracle pipeline)
+- SQLite WASM — lacks Parquet httpfs support
 
 ## CRM State Persistence
 
 **Decision**: Vercel Neon Postgres via Drizzle ORM
 
-**Rationale**: The CRM needs to persist its own state (saved criteria, opportunities, notifications, outreach records) across sessions. Neon Postgres on Vercel's free/hobby tier provides a lightweight hosted DB for CRM-specific data. This is CRM's own cost, not Oracle's — the pipeline data stays on IPFS. Drizzle ORM provides type-safe schema and query building aligned with TypeScript-first approach.
+**Rationale**: Constitution specifies "Vercel Neon for hosted query DB." The CRM needs to persist its own state (saved criteria, opportunities, notifications, outreach records) across sessions. This is CRM's own cost, not Oracle's. Drizzle ORM provides type-safe schema aligned with TypeScript-first approach. tRPC procedures in Lambda access Neon via serverless driver.
 
 **Alternatives considered**:
-- SQLite on Vercel — Vercel doesn't support persistent file storage; SQLite would lose state between deployments
-- Upstash Redis — good for simple key-value but awkward for relational CRM data (opportunity stages, outreach history)
-- In-memory only — would lose all CRM state on page refresh; unacceptable for deal tracking
+- DynamoDB — works on AWS but awkward for relational CRM data (stages, history, joins)
+- RDS Postgres — heavier infrastructure; Neon serverless is lighter for single-user workload
 
 ## Map Performance at Scale
 
 **Decision**: MapLibre cluster layer with progressive loading
 
-**Rationale**: 245k markers rendered individually would overwhelm the browser. MapLibre's built-in `cluster` source option groups nearby properties at low zoom levels, showing individual markers only when zoomed in. Properties are loaded as GeoJSON from DuckDB-WASM query results. For filtered views (after criteria search), the result set is typically hundreds to low thousands — well within direct rendering limits.
+**Rationale**: 245k markers rendered individually would overwhelm the browser. MapLibre's built-in `cluster` source groups nearby properties at low zoom. Properties loaded as GeoJSON from client-side DuckDB-WASM. For filtered views, result sets are hundreds to low thousands — within direct rendering limits.
 
-**Alternatives considered**:
-- Server-side tile generation (MVT) — optimal for millions of points but adds server infrastructure
-- Canvas-based rendering (deck.gl) — powerful but heavier dependency for this use case
-- Pagination with viewport queries — viable but breaks the "see everything" map experience
+## Backend API Layer
+
+**Decision**: tRPC with AWS Lambda adapter
+
+**Rationale**: `build-frontend-backends` mandates tRPC for the API layer. Routers organized by domain (properties, criteria, opportunities, notifications, outreach, agent). Zod validation on all inputs. `AppRouter` type exported to `packages/api-client/` for type-safe frontend consumption. Lambda adapter via `@trpc/server/adapters/aws-lambda`.
 
 ## RAG Agent Architecture
 
-**Decision**: Vercel AI SDK with DuckDB-WASM as a tool
+**Decision**: Vercel AI SDK with DuckDB Node as a tool, running in Lambda
 
-**Rationale**: Constitution mandates Vercel AI SDK for all LLM interactions. The agent receives natural-language queries, translates them to SQL using a system prompt with the Parquet schema, executes via DuckDB-WASM, and returns results with provenance. This keeps the agent stateless and the data source consistent with the map/search layer.
-
-**Alternatives considered**:
-- OpenSearch/vector search — adds infrastructure and cost; overkill when DuckDB can handle structured property queries
-- Direct LLM with all data in context — 245k records exceed context limits
-- Pre-built embeddings — adds complexity; structured SQL queries are more deterministic for property attribute searches
+**Rationale**: Constitution mandates Vercel AI SDK for all LLM interactions. The agent receives natural-language queries via a tRPC procedure, translates them to SQL using a system prompt with the Parquet schema, executes via server-side DuckDB Node, and returns results with provenance. Tool schemas defined with Zod (mandatory per `stack-ai-sdk-for-llm` rule). Uses `generateText` with tool calling, not hand-rolled loops.
 
 ## Webhook Processing
 
-**Decision**: Next.js API route with sequential processing queue
+**Decision**: tRPC procedure (or dedicated Lambda) with HMAC verification and sequential processing
 
-**Rationale**: The pipeline sends webhook events (at-least-once) after publishing. The CRM webhook handler: (1) verifies HMAC signature, (2) deduplicates by event_id, (3) resolves the new artifact, (4) runs saved criteria against delta records, (5) generates summary notifications. Processing is sequential per the parent spec requirement. Neon Postgres stores event log for idempotency.
+**Rationale**: The pipeline sends webhook events (at-least-once) after publishing. The handler: (1) verifies HMAC-SHA256 signature, (2) deduplicates by event_id in Neon, (3) loads delta parcel IDs from the new Parquet via server-side DuckDB, (4) runs saved criteria against delta records, (5) generates summary notifications. Powertools Logger + Tracer + Metrics instrument the entire flow.
 
-**Alternatives considered**:
-- External queue (SQS, Redis) — adds infrastructure; webhook volume is low (one event per pipeline run)
-- Polling IPNS — rejected in clarification; webhook is the chosen pattern
-- Background worker — Next.js API routes can handle the processing inline for the expected volume (one event every few hours at most)
+## Observability
 
-## Deployment
+**Decision**: AWS Lambda Powertools (Logger, Tracer, Metrics) + PagerDuty alerting
 
-**Decision**: Vercel
+**Rationale**: Constitution mandates Powertools on every Lambda, X-Ray active tracing, and PagerDuty for critical failures. Metrics include `WebhookProcessed`, `WebhookFailed`, `NotificationGenerated`, `CriteriaMatched`, `ProcessingDuration` — all registered in Lexicon with CloudWatch dashboard widgets.
 
-**Rationale**: Constitution requires hosted runtime without local setup. Vercel provides zero-config deployment for Next.js with built-in Neon Postgres integration, edge functions, and automatic HTTPS. The free/hobby tier covers the expected single-user workload.
+**Critical failure alerting**: PagerDuty trigger on terminal webhook processing failure (exhausted retries, unrecoverable error). Routing key from Secrets Manager; gated to production account.
 
-**Alternatives considered**:
-- AWS Amplify — works but more setup friction for Next.js; Vercel is the native platform
-- Self-hosted on EC2/ECS — adds infrastructure management; unnecessary for a demo/single-user CRM
-- Cloudflare Pages — good but less mature Next.js support
+## Infrastructure
+
+**Decision**: CDK stack with Lambda + API Gateway v2 + custom domain
+
+**Rationale**: Constitution mandates CDK as the only IaC tool. Stack deploys tRPC Lambda behind HTTP API Gateway v2 in us-east-2. X-Ray tracing enabled. Resources tagged with `project_name`. Custom domain mapping with base path.
+
+## Frontend Hosting
+
+**Decision**: AWS Amplify
+
+**Rationale**: `build-frontend-backends` mandates Amplify for frontend apps. Next.js app deploys to Amplify with `amplify.yml` config. Environment variables per branch (`NEXT_PUBLIC_API_URL` pointing to API Gateway custom domain). Amplify handles builds via Turborepo pipeline (`pnpm turbo run build --filter=web...`).
+
+## CI/CD
+
+**Decision**: GitHub Actions with Vitest + CDK deploy
+
+**Rationale**: Constitution mandates Vitest for TypeScript testing and GitHub Actions for CI. Pipeline runs lint, typecheck, test, build. CDK deploy triggered on merge to main.

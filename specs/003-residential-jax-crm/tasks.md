@@ -4,9 +4,7 @@
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/webhook-receiver.md, quickstart.md
 
-**Tests**: Not explicitly requested — test tasks omitted. Add via `/speckit-tasks --tdd` if needed.
-
-**Organization**: Tasks grouped by user story for independent implementation. Agent/skill references from plan.md Agent & Skill Mapping.
+**Organization**: Turborepo monorepo (`apps/web/`, `apps/api/`, `packages/`). Tasks grouped by user story. Agent/skill references from plan.md.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -16,177 +14,202 @@
 
 ---
 
-## Phase 1: Setup (Shared Infrastructure)
+## Phase 1: Setup (Monorepo Scaffolding)
 
-**Purpose**: Project initialization, dependencies, and tooling
-**Agent**: `metagross` | **Skills**: `apply-engineering-guidelines`, `build-frontend-backends`
+**Purpose**: Turborepo monorepo, pnpm workspace, shared configs
+**Agent**: `metagross` | **Skills**: `build-frontend-backends`, `apply-engineering-guidelines`
 
-- [ ] T001 Initialize Next.js 14+ App Router project with TypeScript in repository root
-- [ ] T002 Install core dependencies: maplibre-gl, react-map-gl, @duckdb/duckdb-wasm, drizzle-orm, @neondatabase/serverless, ai (Vercel AI SDK)
-- [ ] T003 [P] Configure Vitest with TypeScript support in vitest.config.ts
-- [ ] T004 [P] Configure ESLint + Prettier in .eslintrc.json and .prettierrc
-- [ ] T005 [P] Create .env.example with DATABASE_URL, WEBHOOK_SECRET, NEXT_PUBLIC_IPNS_OPEN_DATA, NEXT_PUBLIC_IPNS_QUERY_TABLE, OPENAI_API_KEY
-- [ ] T006 Create shared TypeScript types for property data in src/types/property.ts (Property, Owner, Provenance, DerivedSignals from data-model.md)
-- [ ] T007 [P] Create shared TypeScript types for CRM entities in src/types/crm.ts (Opportunity, OutreachRecord, Task, SavedCriteria, Notification)
-- [ ] T008 [P] Create shared TypeScript types for pipeline integration in src/types/pipeline.ts (WebhookEvent, PipelineRun, DeltaSummary)
+- [ ] T001 Initialize Turborepo monorepo with pnpm workspace — create pnpm-workspace.yaml, turbo.json, root package.json with workspace scripts
+- [ ] T002 Create packages/tsconfig/ with base.json, nextjs.json, node.json shared TypeScript configs (strict: true)
+- [ ] T003 Create apps/web/ — initialize Next.js 14+ App Router project with TypeScript, install maplibre-gl, react-map-gl, @duckdb/duckdb-wasm
+- [ ] T004 [P] Create apps/api/ — initialize TypeScript Lambda project, install @trpc/server, @trpc/server/adapters/aws-lambda, drizzle-orm, @neondatabase/serverless, ai, @ai-sdk/amazon-bedrock, @aws-lambda-powertools/logger, @aws-lambda-powertools/tracer, @aws-lambda-powertools/metrics, duckdb (Node bindings), zod
+- [ ] T005 [P] Create packages/shared/ with shared types in packages/shared/src/types/ — property.ts (Property, Owner, Provenance, DerivedSignals), crm.ts (Opportunity, OutreachRecord, Task, SavedCriteria, Notification), pipeline.ts (WebhookEvent, PipelineRun, DeltaSummary) per data-model.md
+- [ ] T006 [P] Create packages/api-client/ — tRPC client setup, AppRouter type export, React hooks for frontend consumption
+- [ ] T007 [P] Configure Vitest in apps/api/vitest.config.ts with TypeScript support and aws-sdk-client-mock
+- [ ] T008 [P] Configure ESLint + Prettier across workspace (root .eslintrc.json, .prettierrc)
+- [ ] T009 [P] Create .env.example with DATABASE_URL, WEBHOOK_SECRET, IPNS_OPEN_DATA_KEY, IPNS_QUERY_TABLE_KEY, BEDROCK_MODEL_ID, PAGERDUTY_ROUTING_KEY_SECRET_ARN
+- [ ] T010 Wire internal dependencies — apps/web depends on packages/api-client and packages/shared (workspace:*); apps/api depends on packages/shared (workspace:*)
 
-**Checkpoint**: Project builds, lints, and runs `next dev` with empty pages.
+**Checkpoint**: `pnpm turbo run build` succeeds across all apps and packages. `pnpm turbo run typecheck` passes.
 
 ---
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-**Purpose**: Data access layers that ALL user stories depend on
+**Purpose**: Data access layers and tRPC backend skeleton that ALL user stories depend on
 **Agent**: `metagross` | **Skills**: `use-elephant-query-db`, `use-elephant-mcp`, `build-frontend-backends`
 
 **Data exploration prerequisite**: Use `donphan` agent with `use-elephant-mcp` skill to verify Duval property Parquet schema fields match data-model.md before building queries.
 
-- [ ] T009 Implement DuckDB-WASM initialization and Parquet loading from IPFS in src/lib/duckdb.ts (httpfs extension, IPNS URL resolution, CREATE VIEW for properties)
-- [ ] T010 Implement IPNS resolution helper in src/lib/ipfs.ts (resolve IPNS pointer to CID, construct Filebase gateway URLs for open-data and query-table labels)
-- [ ] T011 Define Drizzle ORM schema for all CRM tables in src/lib/db/schema.ts (saved_criteria, pipeline_events, notifications, opportunities, opportunity_history, tasks, outreach_records — per data-model.md)
-- [ ] T012 Create Drizzle client with Neon serverless driver in src/lib/db/index.ts
-- [ ] T013 Create drizzle.config.ts and run initial migration to Neon with `drizzle-kit push`
-- [ ] T014 Create root layout with sidebar navigation in src/app/layout.tsx (links: Map/Dashboard, Opportunities, Notifications)
+- [ ] T011 Create tRPC Lambda entry point in apps/api/src/handler.ts — initialize Powertools Logger, Tracer, Metrics; use awsLambdaRequestHandler with appRouter
+- [ ] T012 Create tRPC context in apps/api/src/context.ts — pass Lambda event, context, Powertools instances to all procedures
+- [ ] T013 Create root tRPC router in apps/api/src/routers/index.ts — merge all domain routers, export AppRouter type
+- [ ] T014 Implement server-side DuckDB Node init and Parquet loading in apps/api/src/services/duckdb.ts (httpfs extension, IPNS URL resolution, CREATE VIEW for properties, queryProperties, queryPropertiesByCriteria)
+- [ ] T015 [P] Implement IPNS resolution helper in apps/api/src/services/ipfs.ts (resolve IPNS pointer to CID, construct Filebase gateway URLs)
+- [ ] T016 Define Drizzle ORM schema for all CRM tables in apps/api/src/lib/db/schema.ts (saved_criteria, pipeline_events, notifications, opportunities, opportunity_history, tasks, outreach_records — per data-model.md)
+- [ ] T017 Create Drizzle client with Neon serverless driver in apps/api/src/lib/db/index.ts
+- [ ] T018 Create drizzle.config.ts in apps/api/ and run initial migration to Neon with `drizzle-kit push`
+- [ ] T019 Implement client-side DuckDB-WASM init and queries in apps/web/src/lib/duckdb.ts (httpfs, IPNS URL, CREATE VIEW, queryProperties returning GeoJSON FeatureCollection)
+- [ ] T020 Create root layout with sidebar navigation in apps/web/src/app/layout.tsx (links: Map/Dashboard, Opportunities, Notifications)
 
-**Checkpoint**: DuckDB-WASM loads Duval Parquet from IPFS, Drizzle connects to Neon, layout renders with navigation.
+**Checkpoint**: Server-side DuckDB loads Parquet from IPFS in Lambda. Client-side DuckDB-WASM loads in browser. Drizzle connects to Neon. tRPC endpoint responds. Layout renders.
 
 ---
 
 ## Phase 3: User Story 1 — Map-Based Property Discovery (Priority: P1) MVP
 
 **Goal**: Interactive map centered on Jacksonville/Duval County showing ~245k residential properties with detail panel and list view.
-**Independent Test**: Open the CRM, verify properties render on map, click a marker to see detail, switch to list view. (V1 in quickstart.md)
+**Independent Test**: Open CRM, verify properties render on map, click marker → detail, switch to list view. (V1 in quickstart.md)
 **Agent**: `metagross` | **Skills**: `build-frontend-backends`, `use-elephant-mcp`
 
-- [ ] T015 [US1] Create PropertyMap component with MapLibre GL JS in src/components/map/PropertyMap.tsx (center on Jacksonville 30.3322/-81.6557, zoom 11, GeoJSON source with cluster layer for ~245k properties)
-- [ ] T016 [P] [US1] Create PropertyMarker component in src/components/map/PropertyMarker.tsx (popup on click showing parcel ID, address, assessed value)
-- [ ] T017 [US1] Implement property data loading hook in src/lib/duckdb.ts — add `queryProperties()` function that runs SELECT on DuckDB view and returns GeoJSON FeatureCollection for map
-- [ ] T018 [US1] Create PropertyDetail panel component in src/components/properties/PropertyDetail.tsx (parcel ID, address, owner, assessed value, ownership tenure, roof age, coordinates, provenance with source list, pipeline run, collection timestamps)
-- [ ] T019 [P] [US1] Create PropertyList component in src/components/properties/PropertyList.tsx (sortable table with columns: parcel ID, address, owner, assessed value, tenure years, roof age; click row to select on map)
-- [ ] T020 [US1] Create main dashboard page in src/app/page.tsx (split layout: map left, list/detail right; synchronized selection between map and list; toggle between map-only, list-only, split views)
+- [ ] T021 [US1] Create properties tRPC router in apps/api/src/routers/properties.ts (query procedure: return properties from server-side DuckDB as GeoJSON; getById procedure: return single property by parcel_id)
+- [ ] T022 [US1] Create PropertyMap component in apps/web/src/components/map/PropertyMap.tsx (center Jacksonville 30.3322/-81.6557, zoom 11, GeoJSON source with cluster layer)
+- [ ] T023 [P] [US1] Create PropertyMarker component in apps/web/src/components/map/PropertyMarker.tsx (popup on click: parcel ID, address, assessed value)
+- [ ] T024 [US1] Create PropertyDetail panel in apps/web/src/components/properties/PropertyDetail.tsx (parcel ID, address, owner, assessed value, ownership tenure, roof age, coordinates, provenance with sources, pipeline run, timestamps)
+- [ ] T025 [P] [US1] Create PropertyList component in apps/web/src/components/properties/PropertyList.tsx (sortable table: parcel ID, address, owner, assessed value, tenure years, roof age; click row selects on map)
+- [ ] T026 [US1] Create main dashboard page in apps/web/src/app/page.tsx (split layout: map left, list/detail right; synchronized selection; map/list/split toggle)
 
-**Checkpoint**: Map displays Duval County properties with clustering. Click a marker → detail panel. Switch to list → same data in sortable table. V1 validated.
+**Checkpoint**: Map displays Duval properties with clustering. Click marker → detail panel. Switch to list → sortable table. V1 validated.
 
 ---
 
 ## Phase 4: User Story 2 — Criteria Search and Saved Searches (Priority: P1)
 
 **Goal**: Define, apply, and save acquisition criteria with percentage match scoring and geographic filtering.
-**Independent Test**: Define criteria, verify matches appear ranked, save as named search, recall it. (V2 in quickstart.md)
+**Independent Test**: Define criteria, verify matches ranked, save search, recall it. (V2 in quickstart.md)
 **Agent**: `metagross` | **Skills**: `build-frontend-backends`, `use-elephant-mcp`
 
-- [ ] T021 [US2] Implement criteria matcher logic in src/lib/criteria-matcher.ts (evaluate property against filter set, return percentage score + per-criterion breakdown; filters: ownership_tenure_min_years, roof_age_min_years, zip_codes, assessed_value_min/max, is_regional_owner, water_proximity_max_ft)
-- [ ] T022 [US2] Create SearchCriteria form component in src/components/properties/SearchCriteria.tsx (input fields for each filter type, apply button, clear button, save button)
-- [ ] T023 [US2] Create DrawControl component in src/components/map/DrawControl.tsx (MapLibre draw plugin for polygon and radius geographic bounds, emit GeoJSON to parent)
-- [ ] T024 [US2] Add DuckDB query functions for criteria filtering in src/lib/duckdb.ts — `queryPropertiesByCriteria(filters)` that builds WHERE clause from filter set and returns matched properties with match scores
-- [ ] T025 [US2] Create API route for saved criteria CRUD in src/app/api/criteria/route.ts (GET list, POST create — persist to saved_criteria table via Drizzle)
-- [ ] T026 [US2] Create API route for individual criteria in src/app/api/criteria/[id]/route.ts (GET, PUT, DELETE)
-- [ ] T027 [US2] Integrate criteria search into dashboard page src/app/page.tsx (search panel, apply filters to map + list, show match scores, saved searches dropdown to recall)
+- [ ] T027 [US2] Implement criteria matcher service in apps/api/src/services/criteria-matcher.ts (evaluate property against filter set, return percentage score + per-criterion breakdown; filters: ownership_tenure_min_years, roof_age_min_years, zip_codes, assessed_value_min/max, is_regional_owner, water_proximity_max_ft)
+- [ ] T028 [US2] Create criteria tRPC router in apps/api/src/routers/criteria.ts (list, create, getById, update, delete procedures with Zod input validation — persist to saved_criteria table)
+- [ ] T029 [US2] Add searchByCriteria procedure to properties tRPC router in apps/api/src/routers/properties.ts (builds DuckDB WHERE clause from filters, returns matched properties with match scores)
+- [ ] T030 [US2] Create SearchCriteria form component in apps/web/src/components/properties/SearchCriteria.tsx (inputs for each filter type, apply, clear, save buttons — calls tRPC via api-client)
+- [ ] T031 [US2] Create DrawControl component in apps/web/src/components/map/DrawControl.tsx (MapLibre draw for polygon/radius, emit GeoJSON)
+- [ ] T032 [US2] Integrate criteria search into dashboard in apps/web/src/app/page.tsx (search panel, apply filters to map + list, match scores, saved searches dropdown)
 
-**Checkpoint**: Define criteria → properties ranked by percentage match → save as "Arlington Distressed" → recall → same results. V2 validated.
+**Checkpoint**: Define criteria → ranked matches → save "Arlington Distressed" → recall → same results. V2 validated.
 
 ---
 
 ## Phase 5: User Story 3 — Proactive Pipeline Notifications (Priority: P2)
 
-**Goal**: Webhook receives pipeline events, matches delta records against saved criteria, generates summary notifications.
-**Independent Test**: Simulate webhook POST, verify notification appears linking to matched properties. (V3 in quickstart.md)
+**Goal**: Webhook receives pipeline events, matches delta against saved criteria, generates summary notifications.
+**Independent Test**: POST webhook, verify notification appears linking to matched properties. (V3 in quickstart.md)
 **Agent**: `metagross` | **Skills**: `apply-engineering-guidelines`, `build-frontend-backends`
 **Contract**: `contracts/webhook-receiver.md`
 
-- [ ] T028 [US3] Implement webhook handler in src/lib/webhook-handler.ts (verify HMAC-SHA256 signature, deduplicate by event_id, store in pipeline_events table, process delta — match new/updated parcel_ids against all saved criteria with notifications_enabled, generate summary notifications per criteria set per run)
-- [ ] T029 [US3] Create webhook API route in src/app/api/webhook/pipeline/route.ts (POST handler calling webhook-handler, return 200 accepted/duplicate or 401/500 per contract)
-- [ ] T030 [P] [US3] Create API route for notifications in src/app/api/notifications/route.ts (GET list with unread count, PATCH mark as read)
-- [ ] T031 [P] [US3] Create NotificationBell component in src/components/notifications/NotificationBell.tsx (header icon with unread badge, dropdown preview of recent notifications)
-- [ ] T032 [US3] Create NotificationList component in src/components/notifications/NotificationList.tsx (full history: summary text, matched criteria name, pipeline run reference, timestamp, click to navigate to matched properties)
-- [ ] T033 [US3] Create notifications page in src/app/notifications/page.tsx (full notification history with NotificationList, filter by criteria set, link to property batch)
+- [ ] T033 [US3] Implement webhook handler service in apps/api/src/services/webhook-handler.ts (verify HMAC-SHA256, deduplicate by event_id in pipeline_events table, load delta parcel_ids, match against all saved criteria with notifications_enabled via server-side DuckDB, generate summary notification per criteria set per run; emit Powertools metrics: WebhookProcessed, WebhookFailed, NotificationGenerated, CriteriaMatched, ProcessingDuration)
+- [ ] T034 [US3] Create webhook tRPC router in apps/api/src/routers/webhook.ts (POST-style mutation calling webhook-handler; return accepted/duplicate/error per contract)
+- [ ] T035 [US3] Create notifications tRPC router in apps/api/src/routers/notifications.ts (list with unread count, markAsRead mutation)
+- [ ] T036 [P] [US3] Create NotificationBell component in apps/web/src/components/notifications/NotificationBell.tsx (header icon with unread badge, dropdown preview)
+- [ ] T037 [US3] Create NotificationList component in apps/web/src/components/notifications/NotificationList.tsx (history: summary, criteria name, run reference, timestamp, click to navigate)
+- [ ] T038 [US3] Create notifications page in apps/web/src/app/notifications/page.tsx (full history, filter by criteria set)
 
-**Checkpoint**: POST webhook → notification generated → bell shows badge → click opens history → click notification navigates to matched properties. V3 validated.
+**Checkpoint**: POST webhook → notification generated → bell badge → history → click navigates to matches. V3 validated.
 
 ---
 
 ## Phase 6: User Story 4 — CRM Acquisition Workflow (Priority: P2)
 
-**Goal**: Create opportunities from properties, track through stages, record notes/offers, assign tasks, filter by multiple dimensions.
-**Independent Test**: Create opportunity from property, advance stages, add notes, assign task, filter list. (V4 in quickstart.md)
+**Goal**: Create opportunities from properties, track stages, record notes/offers, assign tasks, filter.
+**Independent Test**: Create opportunity, advance stages, add notes, assign task, filter list. (V4 in quickstart.md)
 **Agent**: `metagross` | **Skills**: `build-frontend-backends`, `use-elephant-query-db`
 
-- [ ] T034 [US4] Create API routes for opportunities in src/app/api/opportunities/route.ts (GET list with filters — stage, zip, criteria score; POST create from parcel_id — populate owner_name from DuckDB, set stage=identified, link source_criteria_id)
-- [ ] T035 [US4] Create API route for individual opportunity in src/app/api/opportunities/[id]/route.ts (GET detail, PATCH update stage/notes/offers/interest, record history in opportunity_history)
-- [ ] T036 [P] [US4] Create API routes for tasks in src/app/api/opportunities/[id]/tasks/route.ts (GET list, POST create with title, assignee, due_date; PATCH toggle completed)
-- [ ] T037 [US4] Create OpportunityCard component in src/components/opportunities/OpportunityCard.tsx (show stage, owner, asking price, offer, match score, last updated)
-- [ ] T038 [P] [US4] Create StageTracker component in src/components/opportunities/StageTracker.tsx (visual pipeline: Identified → Contacted → Negotiating → Under Contract → Closed/Dead; click to advance with note prompt)
-- [ ] T039 [US4] Create opportunities page in src/app/opportunities/page.tsx (filterable list: by stage, zip code, criteria match score, distress signals (ownership tenure, roof age, regional owner), date range; click card → detail view with StageTracker, notes, tasks, offers)
-- [ ] T040 [US4] Add "Create Opportunity" button to PropertyDetail component in src/components/properties/PropertyDetail.tsx (check for existing opportunity on same parcel_id — warn if exists, link to it; otherwise create new)
+- [ ] T039 [US4] Create opportunities tRPC router in apps/api/src/routers/opportunities.ts (list with filters: stage, zip, criteria score, distress signals, date range; create from parcel_id populating owner from DuckDB; getById; updateStage with history recording; updateDetails for notes/offers/interest; Zod validation)
+- [ ] T040 [P] [US4] Create tasks sub-router in apps/api/src/routers/opportunities.ts (list, create with title/assignee/due_date, toggleCompleted)
+- [ ] T041 [US4] Create OpportunityCard component in apps/web/src/components/opportunities/OpportunityCard.tsx (stage, owner, asking price, offer, match score, last updated)
+- [ ] T042 [P] [US4] Create StageTracker component in apps/web/src/components/opportunities/StageTracker.tsx (visual pipeline: Identified → Contacted → Negotiating → Under Contract → Closed/Dead; click to advance with note prompt)
+- [ ] T043 [US4] Create opportunities page in apps/web/src/app/opportunities/page.tsx (filterable list, click card → detail with StageTracker, notes, tasks, offers)
+- [ ] T044 [US4] Add "Create Opportunity" to PropertyDetail in apps/web/src/components/properties/PropertyDetail.tsx (check existing by parcel_id — warn + link if exists; otherwise create)
 
-**Checkpoint**: Property detail → Create Opportunity → advance stages → record notes/offers → assign task → filter in opportunity list. V4 validated.
+**Checkpoint**: Property → Create Opportunity → advance stages → notes/offers → assign task → filter list. V4 validated.
 
 ---
 
 ## Phase 7: User Story 5 — Mocked Outreach Campaigns (Priority: P3)
 
-**Goal**: Simulated email, SMS, and direct mail outreach with lifecycle tracking.
-**Independent Test**: Send mocked outreach, verify lifecycle progression appears in history. (V5 in quickstart.md)
+**Goal**: Simulated email, SMS, direct mail outreach with lifecycle tracking.
+**Independent Test**: Send mocked outreach, verify lifecycle progression. (V5 in quickstart.md)
 **Agent**: `metagross` | **Skills**: `build-frontend-backends`
 
-- [ ] T041 [US5] Create API routes for outreach in src/app/api/opportunities/[id]/outreach/route.ts (GET list, POST create with channel + recipient + subject; auto-simulate lifecycle progression via setTimeout or cron: sent → delivered → replied/bounced after random delays)
-- [ ] T042 [US5] Create OutreachPanel component in src/components/opportunities/OutreachPanel.tsx (send buttons for email/SMS/direct mail, outreach history table: channel, recipient, status, timestamps)
-- [ ] T043 [US5] Integrate OutreachPanel into opportunity detail view in src/app/opportunities/page.tsx (tab or section within opportunity detail showing outreach history + send actions)
+- [ ] T045 [US5] Create outreach tRPC router in apps/api/src/routers/outreach.ts (list by opportunity, create with channel/recipient/subject, simulate lifecycle: sent → delivered → replied/bounced after random delays)
+- [ ] T046 [US5] Create OutreachPanel component in apps/web/src/components/opportunities/OutreachPanel.tsx (send buttons for email/SMS/direct mail, history table: channel, recipient, status, timestamps)
+- [ ] T047 [US5] Integrate OutreachPanel into opportunity detail in apps/web/src/app/opportunities/page.tsx
 
-**Checkpoint**: Select opportunity → send mocked email → status shows "Sent" → progresses to "Delivered" → eventually "Replied" or "Bounced". V5 validated.
+**Checkpoint**: Send mocked email → "Sent" → "Delivered" → "Replied"/"Bounced". V5 validated.
 
 ---
 
 ## Phase 8: User Story 6 — Natural-Language Agent Queries (Priority: P3)
 
-**Goal**: RAG-backed agent that answers property questions in natural language with source-backed evidence.
-**Independent Test**: Ask NL query, verify relevant properties returned with sources. (V6 in quickstart.md)
-**Agent**: `ash` | **Skills**: `build-ai-agents`, `build-local-rag-pocs`
+**Goal**: RAG-backed agent answering property questions with source evidence.
+**Independent Test**: Ask NL query, verify relevant properties with sources. (V6 in quickstart.md)
+**Agent**: `ash` | **Skills**: `build-ai-agents`
 
-- [ ] T044 [US6] Implement agent API route with Vercel AI SDK in src/app/api/agent/route.ts (system prompt with Parquet schema and available columns, tool definition for `queryProperties` that builds SQL from NL and executes via server-side DuckDB, tool for `getOpportunityStatus` to check CRM state)
-- [ ] T045 [US6] Create AgentChat component in src/components/agent/AgentChat.tsx (chat input, streaming response display, property result cards with match rationale and provenance, click result to navigate to property detail)
-- [ ] T046 [US6] Integrate agent chat into the main layout in src/app/layout.tsx (collapsible chat panel accessible from any page, or dedicated /agent page)
+- [ ] T048 [US6] Create agent tRPC router in apps/api/src/routers/agent.ts (Vercel AI SDK generateText with @ai-sdk/amazon-bedrock, system prompt with Parquet schema, Zod-defined tools: queryProperties builds SQL + executes via server-side DuckDB, getOpportunityStatus checks CRM state; stream results)
+- [ ] T049 [US6] Create AgentChat component in apps/web/src/components/agent/AgentChat.tsx (chat input, streaming response, property result cards with provenance, click to navigate)
+- [ ] T050 [US6] Integrate agent chat into layout in apps/web/src/app/layout.tsx (collapsible panel or /agent page)
 
-**Checkpoint**: Ask "show distressed properties in Arlington with roofs older than 15 years" → agent returns matches with sources → click result → property detail. V6 validated.
+**Checkpoint**: Ask "show distressed properties in Arlington with roofs older than 15 years" → matches with sources → click → detail. V6 validated.
 
 ---
 
 ## Phase 9: User Story 7 — Export and Future Placeholders (Priority: P3)
 
-**Goal**: CSV export of selected records, disabled placeholder sections for future features.
-**Independent Test**: Select records, export CSV, verify file contents. Placeholder sections visible but disabled. (V7 in quickstart.md)
+**Goal**: CSV export, disabled placeholder sections.
+**Independent Test**: Export CSV, verify contents. Placeholders visible but disabled. (V7 in quickstart.md)
 **Agent**: `metagross` | **Skills**: `build-frontend-backends`
 
-- [ ] T047 [P] [US7] Create export API route in src/app/api/export/route.ts (POST with array of parcel_ids or opportunity_ids, query DuckDB/Neon, return CSV with all attributes)
-- [ ] T048 [P] [US7] Add export button to property list and opportunity list (src/components/properties/PropertyList.tsx, src/app/opportunities/page.tsx — select records, click Export, trigger download)
-- [ ] T049 [US7] Add disabled placeholder navigation items in src/app/layout.tsx sidebar (Disposition, Portfolio Tracking, Live Messaging — visible with "Coming Soon" badge, non-clickable)
+- [ ] T051 [P] [US7] Create export tRPC router in apps/api/src/routers/export.ts (accept parcel_ids or opportunity_ids, query DuckDB/Neon, return CSV)
+- [ ] T052 [P] [US7] Add export button to PropertyList and opportunities page (apps/web/src/components/properties/PropertyList.tsx, apps/web/src/app/opportunities/page.tsx — select records, export, download)
+- [ ] T053 [US7] Add disabled placeholder nav items in apps/web/src/app/layout.tsx sidebar (Disposition, Portfolio Tracking, Live Messaging — "Coming Soon" badge, non-clickable)
 
-**Checkpoint**: Filter opportunities → select → export → CSV downloads with complete data. Sidebar shows disabled future sections. V7 validated.
+**Checkpoint**: Filter → select → export → CSV downloads. Sidebar shows disabled future sections. V7 validated.
 
 ---
 
-## Phase 10: Polish & Cross-Cutting Concerns
+## Phase 10: Infrastructure & Observability
 
-**Purpose**: Deployment, demo, and quality assurance
+**Purpose**: CDK stack, Powertools, PagerDuty, Amplify config
+**Agent**: `metagross` | **Skills**: `apply-engineering-guidelines`, `build-frontend-backends`
+
+- [ ] T054 Create CDK stack in apps/api/infra/stack.ts (Lambda with Node.js 22.x runtime, API Gateway v2, custom domain mapping with base path, X-Ray active tracing, Powertools env vars: POWERTOOLS_SERVICE_NAME, POWERTOOLS_METRICS_NAMESPACE, NODE_OPTIONS; resource tagging with project_name; region us-east-2; CORS for Amplify origin)
+- [ ] T055 Add PagerDuty alerting to webhook handler in apps/api/src/services/webhook-handler.ts (on terminal webhook processing failure: fetch routing key from Secrets Manager, POST to PagerDuty Events API v2; gated to production account only)
+- [ ] T056 [P] Register CloudWatch metrics in Lexicon — add entries to cloudwatch-metrics.json: WebhookProcessed, WebhookFailed, NotificationGenerated, CriteriaMatched, ProcessingDuration (namespace: ResidentialCRM, dimensions: service, environment)
+- [ ] T057 [P] Add CloudWatch dashboard widgets for all registered metrics in Main Dashboard repo
+
+**Checkpoint**: CDK deploys Lambda + API Gateway in us-east-2. Powertools logs/traces/metrics visible in CloudWatch. PagerDuty triggers on simulated failure.
+
+---
+
+## Phase 11: Testing & CI/CD
+
+**Purpose**: Vitest tests, GitHub Actions pipeline
 **Agent**: `metagross` | **Skills**: `apply-engineering-guidelines`, `integrate-ci-cd`
 
-### Tests (constitution: Vitest mandatory)
+- [ ] T058 [P] Write unit tests for criteria matcher in apps/api/tests/unit/criteria-matcher.test.ts (percentage scoring, per-criterion breakdown, partial matches, zero matches, all-match)
+- [ ] T059 [P] Write unit tests for webhook handler in apps/api/tests/unit/webhook-handler.test.ts (HMAC verification, event deduplication, delta matching, notification generation; use aws-sdk-client-mock)
+- [ ] T060 [P] Write contract test for webhook payload in apps/api/tests/contract/webhook-payload.test.ts (validate shape matches contracts/webhook-receiver.md, test accepted/duplicate/unauthorized/error responses)
+- [ ] T061 Configure GitHub Actions CI pipeline in .github/workflows/ci.yml (pnpm install, turbo run lint, turbo run typecheck, turbo run test, turbo run build)
+- [ ] T062 Configure GitHub Actions CD pipeline in .github/workflows/deploy.yml (on merge to main: cdk deploy for backend, Amplify auto-deploys frontend)
 
-- [ ] T050 [P] Write unit tests for criteria matcher in tests/unit/criteria-matcher.test.ts (percentage scoring, per-criterion breakdown, partial matches, zero matches, all-match edge case)
-- [ ] T051 [P] Write unit tests for webhook handler in tests/unit/webhook-handler.test.ts (HMAC verification, event deduplication, delta matching against saved criteria, summary notification generation)
-- [ ] T052 [P] Write contract test for webhook payload in tests/contract/webhook-payload.test.ts (validate incoming payload shape matches contracts/webhook-receiver.md, test 200/401/500 responses)
+**Checkpoint**: All tests pass. CI pipeline runs on PR. CD deploys on merge.
 
-### Deployment & Validation
+---
 
-- [ ] T053 Configure Vercel deployment with environment variables (DATABASE_URL, WEBHOOK_SECRET, IPNS keys, OPENAI_API_KEY) in vercel.json or Vercel dashboard
-- [ ] T054 Deploy to Vercel and verify hosted runtime works without local setup
-- [ ] T055 Run full quickstart.md validation (V1-V8) against deployed URL
-- [ ] T056 [P] Validate map performance at scale — load full Duval dataset (~245k properties), verify map interactions remain under 2 seconds (SC-004)
-- [ ] T057 [P] Validate agent accuracy — run the 3 demo transcript queries against the deployed agent, verify relevant results with sources for at least 80% (SC-005)
-- [ ] T058 [P] Add staleness warning UI when IPNS resolution fails or data is older than 24h (parent integration spec FR-013 — graceful IPNS degradation: show banner, retry in background)
-- [ ] T059 [P] Add duplicate opportunity guard in src/app/api/opportunities/route.ts (check existing opportunity for same parcel_id before creating, return warning + link)
-- [ ] T060 [P] Configure GitHub Actions CI/CD pipeline with Vitest test runner and Vercel deploy (integrate-ci-cd skill)
-- [ ] T061 Record demo video walkthrough covering the end-to-end flow from spec demo transcript
+## Phase 12: Deployment & Validation
+
+**Purpose**: Deploy, validate, demo
+**Agent**: `metagross` | **Skills**: `build-frontend-backends`, `apply-engineering-guidelines`
+
+- [ ] T063 Create amplify.yml in apps/web/ (pnpm install, turbo build --filter=web..., artifacts from dist/)
+- [ ] T064 Deploy Amplify frontend app with NEXT_PUBLIC_API_URL environment variable per branch
+- [ ] T065 Deploy CDK backend stack via `cdk deploy` to us-east-2
+- [ ] T066 Run full quickstart.md validation (V1-V8) against deployed URLs
+- [ ] T067 [P] Validate map performance — load full Duval dataset (~245k properties), verify map interactions under 2 seconds (SC-004)
+- [ ] T068 [P] Validate agent accuracy — run 3 demo transcript queries, verify relevant results with sources for at least 80% (SC-005)
+- [ ] T069 [P] Add staleness warning UI when IPNS resolution fails or data is older than 24h (parent integration spec FR-013: show banner, retry in background)
+- [ ] T070 [P] Add duplicate opportunity guard in apps/api/src/routers/opportunities.ts (check existing by parcel_id, return warning + link)
+- [ ] T071 Record demo video walkthrough covering end-to-end flow from spec demo transcript
 
 ---
 
@@ -196,53 +219,34 @@
 
 - **Phase 1 (Setup)**: No dependencies — start immediately
 - **Phase 2 (Foundational)**: Depends on Phase 1 — BLOCKS all user stories
-- **Phases 3-4 (US1, US2)**: Both P1 priority. US1 first (map is prerequisite for search display), then US2
-- **Phases 5-6 (US3, US4)**: Both P2 priority. Can run in parallel after US1+US2, or sequentially
-- **Phases 7-9 (US5, US6, US7)**: All P3. Can run in parallel after US4 (outreach needs opportunities)
-- **Phase 10 (Polish)**: After all desired stories complete
+- **Phases 3-4 (US1, US2)**: Both P1. US1 first (map prerequisite for search display), then US2
+- **Phases 5-6 (US3, US4)**: Both P2. US3 needs US2 (saved criteria). US4 needs US1. Can run in parallel.
+- **Phases 7-9 (US5, US6, US7)**: All P3. US5 needs US4. US6 needs Phase 2 only. US7 needs US1+US4.
+- **Phase 10 (Infra)**: After Phase 2, can run in parallel with user stories
+- **Phase 11 (Tests)**: After corresponding user story implementations
+- **Phase 12 (Deploy)**: After Phases 10-11
 
 ### User Story Dependencies
 
-- **US1 (Map Discovery)**: After Phase 2 — no dependencies on other stories
-- **US2 (Criteria Search)**: After US1 — needs map + property data loading working
-- **US3 (Notifications)**: After US2 — needs saved criteria to match against
-- **US4 (CRM Workflow)**: After US1 — needs property data and detail panel
-- **US5 (Outreach)**: After US4 — needs opportunity records to attach outreach
-- **US6 (Agent)**: After Phase 2 — only needs DuckDB data layer, independent of CRM state
-- **US7 (Export)**: After US1 + US4 — needs both property data and opportunities
-
-### Within Each Story
-
-- Types/models before services
-- Services before API routes
-- API routes before UI components
-- Components before page integration
+- **US1 (Map)**: After Phase 2
+- **US2 (Search)**: After US1
+- **US3 (Notifications)**: After US2
+- **US4 (CRM)**: After US1
+- **US5 (Outreach)**: After US4
+- **US6 (Agent)**: After Phase 2 (independent of CRM state)
+- **US7 (Export)**: After US1 + US4
 
 ### Parallel Opportunities
 
-- T003, T004, T005 (setup config) — parallel
-- T006, T007, T008 (types) — parallel
-- T016, T019 (marker + list components) — parallel
-- T030, T031 (notification API + bell) — parallel
-- T036, T038 (task API + stage tracker) — parallel
-- T047, T048, T049 (export tasks) — parallel
-- T053, T054 (polish tasks) — parallel
+- T004, T005, T006, T007, T008, T009 (setup) — parallel
+- T023, T025 (marker + list components) — parallel
+- T036 (notification bell) — parallel with T037
+- T040, T042 (task sub-router + stage tracker) — parallel
+- T051, T052 (export route + button) — parallel
+- T058, T059, T060 (all tests) — parallel
+- T067, T068, T069, T070 (validation tasks) — parallel
 - US5, US6, US7 can run in parallel once US4 is done
-
----
-
-## Parallel Example: User Story 1
-
-```bash
-# After Phase 2, launch US1 components in parallel:
-Task: "Create PropertyMarker component in src/components/map/PropertyMarker.tsx"
-Task: "Create PropertyList component in src/components/properties/PropertyList.tsx"
-
-# Then sequentially:
-Task: "Create PropertyMap with cluster layer"
-Task: "Create PropertyDetail panel"
-Task: "Create main dashboard page integrating all"
-```
+- Phase 10 can run in parallel with user story phases
 
 ---
 
@@ -250,38 +254,40 @@ Task: "Create main dashboard page integrating all"
 
 ### MVP First (User Story 1 Only)
 
-1. Complete Phase 1: Setup
-2. Complete Phase 2: Foundational (CRITICAL — blocks all stories)
+1. Complete Phase 1: Setup (Turborepo monorepo)
+2. Complete Phase 2: Foundational (DuckDB + Drizzle + tRPC skeleton)
 3. Complete Phase 3: User Story 1 (Map Discovery)
-4. **STOP and VALIDATE**: Map renders properties, click detail, list view works
-5. Deploy to Vercel — working map-based property explorer
+4. Complete Phase 10: Infrastructure (CDK stack)
+5. **STOP and VALIDATE**: Map renders properties on deployed runtime
+6. Deploy to Amplify + Lambda — working map-based property explorer
 
 ### Incremental Delivery
 
-1. Setup + Foundational → foundation ready
+1. Setup + Foundational + Infra → foundation deployed
 2. US1 (Map) → deploy → property explorer MVP
-3. US2 (Search) → deploy → criteria-based search with saved searches
-4. US3 (Notifications) → deploy → proactive alerts on pipeline updates
-5. US4 (CRM) → deploy → full deal tracking workflow
+3. US2 (Search) → deploy → criteria search with saved searches
+4. US3 (Notifications) → deploy → proactive pipeline alerts
+5. US4 (CRM) → deploy → deal tracking workflow
 6. US5+US6+US7 (Outreach, Agent, Export) → deploy → complete product
-7. Polish → final demo
+7. Tests + CI/CD → quality gates
+8. Polish + Demo → final delivery
 
 ### Agent Handoff Sequence
 
-1. `metagross` scaffolds project (Phase 1-2)
-2. `donphan` explores property data schema (before Phase 3)
-3. `metagross` builds map, search, CRM, webhook (Phases 3-7, 9)
+1. `donphan` explores property data schema (before Phase 2)
+2. `metagross` scaffolds monorepo (Phase 1-2)
+3. `metagross` builds tRPC routers, frontend, CDK infra (Phases 3-7, 9-10)
 4. `ash` builds RAG agent (Phase 8)
-5. `metagross` handles deployment + polish (Phase 10)
+5. `metagross` handles tests, CI/CD, deployment (Phases 11-12)
 
 ---
 
 ## Notes
 
 - [P] tasks = different files, no dependencies
-- [Story] label maps task to specific user story for traceability
-- Agent/skill references are from plan.md Agent & Skill Mapping section
-- Each user story is independently completable and testable
+- [Story] label maps task to specific user story
+- All tRPC routers use Zod input validation
+- Powertools Logger/Tracer/Metrics initialized in tRPC context, available to all procedures
+- All frontend API calls go through packages/api-client tRPC client
+- Never duplicate types — shared types live in packages/shared
 - Commit after each task or logical group
-- Stop at any checkpoint to validate story independently
-- No test tasks generated — add via `/speckit-tasks --tdd` if needed
