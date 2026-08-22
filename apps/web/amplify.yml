@@ -5,13 +5,11 @@ applications:
       phases:
         preBuild:
           commands:
-            - cd ../..
             - npm install -g pnpm
-            - pnpm install --frozen-lockfile
+            - cd ../.. && pnpm install --frozen-lockfile
         build:
           commands:
-            - cd ../..
-            - pnpm turbo run build --filter=web...
+            - cd ../.. && pnpm turbo run build --filter=web...
       artifacts:
         baseDirectory: .next
         files:
