@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import NotificationBell from '@/components/notifications/NotificationBell';
 
 export const metadata: Metadata = {
   title: 'Residential Property Acquisition CRM',
@@ -75,16 +76,32 @@ export default function RootLayout({
           </nav>
 
           {/* Main content area */}
-          <main
-            style={{
-              flex: 1,
-              backgroundColor: '#f5f5f7',
-              padding: 24,
-              overflowY: 'auto',
-            }}
-          >
-            {children}
-          </main>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            {/* Top header bar */}
+            <header
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                alignItems: 'center',
+                padding: '8px 24px',
+                backgroundColor: '#fff',
+                borderBottom: '1px solid #e2e2e2',
+                flexShrink: 0,
+              }}
+            >
+              <NotificationBell />
+            </header>
+            <main
+              style={{
+                flex: 1,
+                backgroundColor: '#f5f5f7',
+                padding: 24,
+                overflowY: 'auto',
+              }}
+            >
+              {children}
+            </main>
+          </div>
         </div>
       </body>
     </html>

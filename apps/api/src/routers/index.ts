@@ -1,6 +1,9 @@
 import { router, publicProcedure } from './trpc.js';
 import { propertiesRouter } from './properties.js';
 import { criteriaRouter } from './criteria.js';
+import { opportunitiesRouter } from './opportunities.js';
+import { webhookRouter } from './webhook.js';
+import { notificationsRouter } from './notifications.js';
 
 export { router, publicProcedure } from './trpc.js';
 
@@ -15,6 +18,9 @@ export const appRouter = router({
   health: healthRouter,
   properties: propertiesRouter,
   criteria: criteriaRouter,
+  opportunities: opportunitiesRouter,
+  webhook: webhookRouter,
+  notifications: notificationsRouter,
 });
 
 export type AppRouter = typeof appRouter;
