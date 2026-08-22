@@ -13,22 +13,26 @@ import { eq } from 'drizzle-orm';
 
 /**
  * Resolve the AI model provider at runtime.
- * Prefers Amazon Bedrock when BEDROCK_MODEL_ID is set,
- * falls back to OpenAI when OPENAI_API_KEY is available.
+ * Prefers Anthropic when ANTHROPIC_API_KEY is set,
+ * falls back to OpenAI, then Amazon Bedrock.
  */
 async function resolveModel(): Promise<LanguageModelV1> {
-  if (process.env.BEDROCK_MODEL_ID) {
-    const { createAmazonBedrock } = await import('@ai-sdk/amazon-bedrock');
-    const provider = createAmazonBedrock();
-    return provider.languageModel(process.env.BEDROCK_MODEL_ID);
+  if (process.env.ANTHROPIC_API_KEY) {
+    const { anthropic } = await import('@ai-sdk/anthropic');
+    return anthropic('claude-sonnet-4-20250514') as unknown as LanguageModelV1;
   }
   if (process.env.OPENAI_API_KEY) {
     const { createOpenAI } = await import('@ai-sdk/openai');
     const provider = createOpenAI();
     return provider.languageModel(process.env.OPENAI_MODEL_ID ?? 'gpt-4o');
   }
+  if (process.env.BEDROCK_MODEL_ID) {
+    const { createAmazonBedrock } = await import('@ai-sdk/amazon-bedrock');
+    const provider = createAmazonBedrock();
+    return provider.languageModel(process.env.BEDROCK_MODEL_ID);
+  }
   throw new Error(
-    'No AI provider configured. Set BEDROCK_MODEL_ID or OPENAI_API_KEY.',
+    'No AI provider configured. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or BEDROCK_MODEL_ID.',
   );
 }
 
