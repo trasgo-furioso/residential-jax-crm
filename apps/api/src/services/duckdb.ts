@@ -1,10 +1,11 @@
 import duckdb from 'duckdb';
 import type { DuckDbError, TableData } from 'duckdb';
-import { getQueryTableUrl } from '@/services/ipfs.js';
+import { resolveQueryTableUrl } from '@/services/ipfs.js';
 
 let db: duckdb.Database | null = null;
 let conn: duckdb.Connection | null = null;
 let initialized = false;
+let currentParquetUrl: string | null = null;
 
 function getConnection(): duckdb.Connection {
   if (!db) {
@@ -39,20 +40,32 @@ function runExec(sql: string): Promise<void> {
 /**
  * Initialize DuckDB with httpfs extension and create a VIEW over the
  * remote Parquet file served from Filebase via IPNS.
+ *
+ * Resolves the Parquet URL from IPNS index.json (cached).
+ * Returns false if the query table URL cannot be resolved (graceful degradation).
  */
-async function ensureInitialized(): Promise<void> {
-  if (initialized) return;
+async function ensureInitialized(): Promise<boolean> {
+  if (initialized && currentParquetUrl) return true;
 
   await runExec("INSTALL httpfs; LOAD httpfs;");
 
-  const parquetUrl = getQueryTableUrl();
+  const parquetUrl = await resolveQueryTableUrl();
+  if (!parquetUrl) {
+    console.warn('[duckdb] Could not resolve query table URL from IPNS — returning empty results');
+    return false;
+  }
 
-  await runExec(`
-    CREATE OR REPLACE VIEW properties AS
-    SELECT * FROM read_parquet('${parquetUrl}');
-  `);
+  // Only recreate the view if the URL changed
+  if (parquetUrl !== currentParquetUrl) {
+    await runExec(`
+      CREATE OR REPLACE VIEW properties AS
+      SELECT * FROM read_parquet('${parquetUrl}');
+    `);
+    currentParquetUrl = parquetUrl;
+  }
 
   initialized = true;
+  return true;
 }
 
 export interface PropertyRow {
@@ -81,7 +94,8 @@ export interface PropertyRow {
  * Return all properties from the Parquet query table.
  */
 export async function queryProperties(): Promise<PropertyRow[]> {
-  await ensureInitialized();
+  const ready = await ensureInitialized();
+  if (!ready) return [];
   return runQuery<PropertyRow>('SELECT * FROM properties');
 }
 
@@ -109,7 +123,8 @@ export interface PropertyFilters {
  * Query properties with dynamic WHERE clause built from the given filters.
  */
 export async function queryPropertiesByCriteria(filters: PropertyFilters): Promise<PropertyRow[]> {
-  await ensureInitialized();
+  const ready = await ensureInitialized();
+  if (!ready) return [];
 
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -198,7 +213,8 @@ export async function queryPropertiesWithWhere(
   whereClause: string,
   limit: number = 20,
 ): Promise<PropertyRow[]> {
-  await ensureInitialized();
+  const ready = await ensureInitialized();
+  if (!ready) return [];
   const sql = `SELECT * FROM properties WHERE ${whereClause} LIMIT ${Math.min(limit, 200)}`;
   return runQuery<PropertyRow>(sql);
 }

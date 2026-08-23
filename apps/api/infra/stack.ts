@@ -64,8 +64,36 @@ export class ResidentialCrmStack extends Stack {
       },
     });
 
+    // ── Webhook Lambda Function ─────────────────────────────────────────
+    const webhookFn = new NodejsFunction(this, 'CrmWebhookHandler', {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '..', 'src', 'webhook-handler-raw.ts'),
+      memorySize: 512,
+      timeout: Duration.seconds(30),
+      tracing: lambda.Tracing.ACTIVE,
+      environment: {
+        POWERTOOLS_SERVICE_NAME: 'ResidentialCRM',
+        POWERTOOLS_METRICS_NAMESPACE: 'ResidentialCRM',
+        NODE_OPTIONS: '--enable-source-maps',
+        DATABASE_URL: process.env.DATABASE_URL ?? '',
+        WEBHOOK_SECRET: process.env.WEBHOOK_SECRET ?? '',
+        IPNS_OPEN_DATA_KEY: process.env.IPNS_OPEN_DATA_KEY ?? '',
+        IPNS_QUERY_TABLE_KEY: process.env.IPNS_QUERY_TABLE_KEY ?? '',
+        PAGERDUTY_ROUTING_KEY_SECRET_ARN:
+          process.env.PAGERDUTY_ROUTING_KEY_SECRET_ARN ?? '',
+      },
+      bundling: {
+        externalModules: ['duckdb'],
+        sourceMap: true,
+        minify: true,
+        target: 'node22',
+      },
+    });
+
     // ── HTTP API Gateway v2 ──────────────────────────────────────────────
     const integration = new HttpLambdaIntegration('CrmLambdaIntegration', fn);
+    const webhookIntegration = new HttpLambdaIntegration('CrmWebhookIntegration', webhookFn);
 
     const allowOrigins = props?.frontendUrl
       ? [props.frontendUrl]
@@ -91,6 +119,13 @@ export class ResidentialCrmStack extends Stack {
         maxAge: Duration.hours(1),
       },
       defaultIntegration: integration,
+    });
+
+    // Explicit route for raw pipeline webhook
+    httpApi.addRoutes({
+      path: '/webhook/pipeline',
+      methods: [apigwv2.HttpMethod.POST],
+      integration: webhookIntegration,
     });
 
     // ── Tags ─────────────────────────────────────────────────────────────

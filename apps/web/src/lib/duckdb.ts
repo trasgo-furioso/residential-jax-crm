@@ -7,13 +7,60 @@ let _dbInstance: duckdbWasm.AsyncDuckDB | null = null;
 let connInstance: duckdbWasm.AsyncDuckDBConnection | null = null;
 let initPromise: Promise<duckdbWasm.AsyncDuckDBConnection> | null = null;
 let viewCreated = false;
+let resolvedParquetUrl: string | null = null;
+let ipnsResolveTimestamp = 0;
+const IPNS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-function getParquetUrl(): string | null {
+interface IndexJson {
+  query_table_cid?: string;
+  query_table_url?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Resolve IPNS key to fetch index.json, extract query_table_url or query_table_cid.
+ * Caches the result for 5 minutes.
+ */
+async function resolveParquetUrl(): Promise<string | null> {
   const ipnsKey = process.env.NEXT_PUBLIC_IPNS_QUERY_TABLE;
   if (!ipnsKey || ipnsKey === 'placeholder') {
     return null;
   }
-  return `https://ipfs.filebase.io/ipns/${ipnsKey}/query-tables/duval/query-table.parquet`;
+
+  const now = Date.now();
+  if (resolvedParquetUrl && now - ipnsResolveTimestamp < IPNS_CACHE_TTL_MS) {
+    return resolvedParquetUrl;
+  }
+
+  try {
+    const indexUrl = `https://ipfs.filebase.io/ipns/${ipnsKey}/index.json`;
+    const response = await fetch(indexUrl, { signal: AbortSignal.timeout(10_000) });
+    if (!response.ok) {
+      console.warn(`[duckdb] Failed to fetch index.json: ${response.status}`);
+      return resolvedParquetUrl ?? null;
+    }
+
+    const index: IndexJson = (await response.json()) as IndexJson;
+
+    let url: string | null = null;
+    if (index.query_table_url) {
+      url = index.query_table_url;
+    } else if (index.query_table_cid) {
+      url = `https://ipfs.filebase.io/ipfs/${index.query_table_cid}`;
+    }
+
+    if (url) {
+      resolvedParquetUrl = url;
+      ipnsResolveTimestamp = now;
+      return url;
+    }
+
+    console.warn('[duckdb] index.json missing query_table_cid and query_table_url — data may be stale');
+    return resolvedParquetUrl ?? null;
+  } catch (err) {
+    console.warn('[duckdb] Error resolving index.json', err);
+    return resolvedParquetUrl ?? null;
+  }
 }
 
 async function initDuckDB(): Promise<duckdbWasm.AsyncDuckDBConnection> {
@@ -42,9 +89,9 @@ async function initDuckDB(): Promise<duckdbWasm.AsyncDuckDBConnection> {
 }
 
 async function ensureView(): Promise<duckdbWasm.AsyncDuckDBConnection | null> {
-  const url = getParquetUrl();
+  const url = await resolveParquetUrl();
   if (!url) {
-    console.warn('[duckdb] NEXT_PUBLIC_IPNS_QUERY_TABLE not configured — returning empty data');
+    console.warn('[duckdb] Could not resolve query table URL from IPNS — returning empty data');
     return null;
   }
   const conn = await getConnection();
