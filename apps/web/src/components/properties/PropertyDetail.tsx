@@ -197,16 +197,16 @@ export default function PropertyDetail({ property, onClose }: PropertyDetailProp
       <div style={sectionStyle}>
         <div style={sectionTitleStyle}>Property</div>
         <Field label="Year Built" value={property.year_built} />
-        <Field label="Square Feet" value={property.sqft.toLocaleString()} />
+        <Field label="Square Feet" value={property.sqft?.toLocaleString() ?? '—'} />
         <Field label="Roof Age" value={`${property.roof_age_years} years`} />
       </div>
 
       {/* Location Section */}
       <div style={sectionStyle}>
         <div style={sectionTitleStyle}>Location</div>
-        <Field label="Coordinates" value={`${property.lat.toFixed(5)}, ${property.lng.toFixed(5)}`} />
-        <Field label="Water Proximity" value={`${property.water_proximity_ft.toLocaleString()} ft`} />
-        <Field label="Transit Distance" value={`${property.transit_distance_mi.toFixed(1)} mi`} />
+        <Field label="Coordinates" value={property.lat != null && property.lng != null ? `${property.lat.toFixed(5)}, ${property.lng.toFixed(5)}` : '—'} />
+        <Field label="Water Proximity" value={property.water_proximity_ft != null ? `${property.water_proximity_ft.toLocaleString()} ft` : '—'} />
+        <Field label="Transit Distance" value={property.transit_distance_mi != null ? `${property.transit_distance_mi.toFixed(1)} mi` : '—'} />
       </div>
 
       {/* Provenance Section */}
