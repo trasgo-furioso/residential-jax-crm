@@ -1,15 +1,16 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { queryProperties, queryPropertiesByCriteria } from '@/lib/duckdb';
+import dynamic from 'next/dynamic';
 import type { GeoJSONFeatureCollection, CriteriaFilters } from '@/lib/duckdb';
 import type { MapRef } from 'react-map-gl/maplibre';
-import PropertyMap from '@/components/map/PropertyMap';
-import PropertyList from '@/components/properties/PropertyList';
-import PropertyDetail from '@/components/properties/PropertyDetail';
-import SearchCriteria from '@/components/properties/SearchCriteria';
-import DrawControl from '@/components/map/DrawControl';
-import StalenessWarning from '@/components/map/StalenessWarning';
+
+const PropertyMap = dynamic(() => import('@/components/map/PropertyMap'), { ssr: false });
+const PropertyList = dynamic(() => import('@/components/properties/PropertyList'), { ssr: false });
+const PropertyDetail = dynamic(() => import('@/components/properties/PropertyDetail'), { ssr: false });
+const SearchCriteria = dynamic(() => import('@/components/properties/SearchCriteria'), { ssr: false });
+const DrawControl = dynamic(() => import('@/components/map/DrawControl'), { ssr: false });
+const StalenessWarning = dynamic(() => import('@/components/map/StalenessWarning'), { ssr: false });
 
 type ViewMode = 'split' | 'map' | 'list';
 
@@ -161,6 +162,7 @@ export default function Dashboard() {
         setLoading(true);
         setError(null);
         setLoadFailed(false);
+        const { queryProperties } = await import('@/lib/duckdb');
         const data = await queryProperties();
         if (cancelled) return;
 
@@ -214,6 +216,7 @@ export default function Dashboard() {
     setSearching(true);
     setActiveFilters(filters);
     try {
+      const { queryPropertiesByCriteria } = await import('@/lib/duckdb');
       const data = await queryPropertiesByCriteria(filters);
 
       // If geographic bounds drawn, filter by bounding box
@@ -257,6 +260,7 @@ export default function Dashboard() {
 
   const handleRetryLoad = useCallback(async () => {
     try {
+      const { queryProperties } = await import('@/lib/duckdb');
       const data = await queryProperties();
       setAllGeojson(data);
       setGeojson(data);

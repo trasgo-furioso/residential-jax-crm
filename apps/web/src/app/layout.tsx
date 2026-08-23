@@ -1,6 +1,12 @@
 import type { Metadata } from 'next';
-import NotificationBell from '@/components/notifications/NotificationBell';
-import AgentChatPanel from '@/components/agent/AgentChatPanel';
+import nextDynamic from 'next/dynamic';
+
+const NotificationBell = nextDynamic(() => import('@/components/notifications/NotificationBell'), {
+  ssr: false,
+});
+const AgentChatPanel = nextDynamic(() => import('@/components/agent/AgentChatPanel'), {
+  ssr: false,
+});
 
 export const dynamic = 'force-dynamic';
 
