@@ -307,3 +307,28 @@
 - All frontend API calls go through packages/api-client tRPC client
 - Never duplicate types — shared types live in packages/shared
 - Commit after each task or logical group
+
+---
+
+## Phase 14: Convergence (added 2026-08-23)
+
+**Purpose**: Close remaining gaps between spec intent and implemented code. All core features are built and deployed. These tasks cover validation, polish, and integration testing.
+
+### HIGH — Validation & Integration
+
+- [ ] T080 Run quickstart validation V1-V8 against deployed URLs using Playwright MCP: navigate, wait for DuckDB init, verify properties on map, test criteria search, simulate webhook, test opportunity creation, test outreach, test agent, test export per SC-001/SC-002 (missing)
+- [ ] T081 Register CRM webhook URL (https://42trwtmqqe.execute-api.us-east-2.amazonaws.com/webhook/pipeline) with secret in pipeline's WEBHOOK_URLS on EC2 per FR-015 (missing)
+- [ ] T082 Trigger pipeline run and verify end-to-end webhook → notification → properties updated per T079/SC-003 (missing)
+- [ ] T083 Validate map performance with full Duval dataset (~245k properties when available) — verify interactions under 2 seconds per SC-004 (missing)
+
+### MEDIUM — Quality & Consistency
+
+- [ ] T084 Validate agent accuracy — run 3 demo transcript queries against deployed agent, verify 80%+ relevance with cited sources per SC-005 (missing)
+- [ ] T085 [P] Migrate frontend API calls from custom fetch libs (criteria-api.ts, opportunities-api.ts, agent-api.ts) to packages/api-client tRPC client for consistency per plan.md shared-package pattern (partial)
+
+### LOW — Polish
+
+- [ ] T086 [P] Add ctx.logger.info/debug calls to tRPC routers for structured logging per Constitution II Powertools usage (partial)
+- [ ] T087 [P] Verify duplicate opportunity guard shows warning + link to existing via Playwright per T070 edge case (partial)
+- [ ] T088 [P] Verify staleness warning banner appears when IPNS fails and retry works via Playwright per T069/FR-013 (partial)
+- [ ] T089 Record demo video walkthrough covering end-to-end flow from spec demo transcript per T071 (missing)
