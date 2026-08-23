@@ -19,7 +19,7 @@ import { eq } from 'drizzle-orm';
 async function resolveModel(): Promise<LanguageModelV1> {
   if (process.env.ANTHROPIC_API_KEY) {
     const { anthropic } = await import('@ai-sdk/anthropic');
-    return anthropic('claude-sonnet-4-20250514') as unknown as LanguageModelV1;
+    return anthropic('claude-3-5-sonnet-20241022') as LanguageModelV1;
   }
   if (process.env.OPENAI_API_KEY) {
     const { createOpenAI } = await import('@ai-sdk/openai');
