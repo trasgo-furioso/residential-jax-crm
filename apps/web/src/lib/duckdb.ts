@@ -68,7 +68,7 @@ async function resolveParquetUrl(): Promise<string | null> {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL;
     if (apiUrl) {
       console.info('[duckdb] Trying server-side IPNS resolution via API...');
-      const response = await fetch(`${apiUrl}/trpc/properties.getQueryTableUrl`, {
+      const response = await fetch(`${apiUrl}/properties.getQueryTableUrl`, {
         signal: AbortSignal.timeout(15_000),
       });
       if (response.ok) {
