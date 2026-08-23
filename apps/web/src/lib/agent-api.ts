@@ -37,7 +37,7 @@ export async function agentChat(message: string): Promise<AgentResponse> {
   const res = await fetch(`${API_URL}/agent.chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ json: { message } }),
+    body: JSON.stringify({ message }),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');

@@ -27,7 +27,7 @@ export interface NotificationListResponse {
 async function trpcQuery<T>(path: string, input?: unknown): Promise<T> {
   const url = new URL(`${API_URL}/${path}`);
   if (input !== undefined) {
-    url.searchParams.set('input', JSON.stringify({ json: input }));
+    url.searchParams.set('input', JSON.stringify(input));
   }
   const res = await fetch(url.toString());
   if (!res.ok) throw new Error(`API error: ${res.status}`);
@@ -39,7 +39,7 @@ async function trpcMutate<T>(path: string, input: unknown): Promise<T> {
   const res = await fetch(`${API_URL}/${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ json: input }),
+    body: JSON.stringify(input),
   });
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   const body = await res.json();
