@@ -20,6 +20,12 @@ export const handler = async (event: { body?: string; headers?: Record<string, s
       '';
     const secret = process.env.WEBHOOK_SECRET || '';
 
+    // Early guard: reject if no signature header
+    if (!signature) {
+      logger.warn('Missing webhook signature header');
+      return { statusCode: 401, body: JSON.stringify({ error: 'missing_signature' }) };
+    }
+
     // Verify HMAC
     if (!verifySignature(body, signature, secret)) {
       metrics.addMetric('WebhookAuthFailed', 'Count', 1);
