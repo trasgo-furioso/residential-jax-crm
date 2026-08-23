@@ -4,6 +4,7 @@ import { queryProperties, queryPropertiesByCriteria } from '@/services/duckdb.js
 import type { PropertyFilters } from '@/services/duckdb.js';
 import { evaluateMatch } from '@/services/criteria-matcher.js';
 import type { CriteriaFilters } from '@/services/criteria-matcher.js';
+import { resolveQueryTableUrl } from '@/services/ipfs.js';
 
 const searchInputSchema = z.object({
   ownership_tenure_min_years: z.number().optional(),
@@ -16,6 +17,11 @@ const searchInputSchema = z.object({
 });
 
 export const propertiesRouter = router({
+  getQueryTableUrl: publicProcedure.query(async () => {
+    const url = await resolveQueryTableUrl();
+    return { url };
+  }),
+
   list: publicProcedure.query(async () => {
     const rows = await queryProperties();
     return rows;

@@ -24,6 +24,7 @@ interface IndexJson {
 async function resolveParquetUrl(): Promise<string | null> {
   const ipnsKey = process.env.NEXT_PUBLIC_IPNS_QUERY_TABLE;
   if (!ipnsKey || ipnsKey === 'placeholder') {
+    console.warn('[duckdb] NEXT_PUBLIC_IPNS_QUERY_TABLE not set or placeholder');
     return null;
   }
 
@@ -32,35 +33,60 @@ async function resolveParquetUrl(): Promise<string | null> {
     return resolvedParquetUrl;
   }
 
+  // Try IPNS resolution with generous timeout (gateway can be slow from browsers)
   try {
+    console.info('[duckdb] Resolving IPNS:', ipnsKey);
     const indexUrl = `https://ipfs.filebase.io/ipns/${ipnsKey}`;
-    const response = await fetch(indexUrl, { signal: AbortSignal.timeout(10_000) });
+    const response = await fetch(indexUrl, { signal: AbortSignal.timeout(30_000) });
     if (!response.ok) {
-      console.warn(`[duckdb] Failed to fetch index.json: ${response.status}`);
-      return resolvedParquetUrl ?? null;
+      console.warn(`[duckdb] IPNS fetch failed: ${response.status}`);
+    } else {
+      const index: IndexJson = (await response.json()) as IndexJson;
+      console.info('[duckdb] Index resolved:', JSON.stringify(index));
+
+      let url: string | null = null;
+      if (index.query_table_url) {
+        url = index.query_table_url;
+      } else if (index.query_table_cid) {
+        url = `https://ipfs.filebase.io/ipfs/${index.query_table_cid}`;
+      }
+
+      if (url) {
+        resolvedParquetUrl = url;
+        ipnsResolveTimestamp = now;
+        console.info('[duckdb] Parquet URL resolved:', url);
+        return url;
+      }
+      console.warn('[duckdb] index.json missing query_table_cid and query_table_url');
     }
-
-    const index: IndexJson = (await response.json()) as IndexJson;
-
-    let url: string | null = null;
-    if (index.query_table_url) {
-      url = index.query_table_url;
-    } else if (index.query_table_cid) {
-      url = `https://ipfs.filebase.io/ipfs/${index.query_table_cid}`;
-    }
-
-    if (url) {
-      resolvedParquetUrl = url;
-      ipnsResolveTimestamp = now;
-      return url;
-    }
-
-    console.warn('[duckdb] index.json missing query_table_cid and query_table_url — data may be stale');
-    return resolvedParquetUrl ?? null;
   } catch (err) {
-    console.warn('[duckdb] Error resolving index.json', err);
-    return resolvedParquetUrl ?? null;
+    console.warn('[duckdb] IPNS resolution failed, trying API fallback:', err instanceof Error ? err.message : err);
   }
+
+  // Fallback: fetch index from the tRPC API which resolves server-side (faster, no IPNS gateway timeout)
+  try {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (apiUrl) {
+      console.info('[duckdb] Trying server-side IPNS resolution via API...');
+      const response = await fetch(`${apiUrl}/trpc/properties.getQueryTableUrl`, {
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const url = data?.result?.data?.url;
+        if (url) {
+          resolvedParquetUrl = url;
+          ipnsResolveTimestamp = now;
+          console.info('[duckdb] Parquet URL from API fallback:', url);
+          return url;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[duckdb] API fallback also failed:', err instanceof Error ? err.message : err);
+  }
+
+  return resolvedParquetUrl ?? null;
 }
 
 async function initDuckDB(): Promise<duckdbWasm.AsyncDuckDBConnection> {
