@@ -34,14 +34,24 @@ export class ResidentialCrmStack extends Stack {
       },
     });
 
+    // ── DuckDB Lambda Layer (pre-built Linux x86_64 native module) ──────
+    // Source: https://github.com/tobilg/duckdb-nodejs-layer
+    // Layer version 21 = DuckDB v1.4.1 with parquet, httpfs, json, icu
+    const duckdbLayer = lambda.LayerVersion.fromLayerVersionArn(
+      this,
+      'DuckDBLayer',
+      'arn:aws:lambda:us-east-2:041475135427:layer:duckdb-nodejs-x86:21',
+    );
+
     // ── Lambda Function ──────────────────────────────────────────────────
     const fn = new NodejsFunction(this, 'CrmApiHandler', {
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'handler',
       entry: path.join(__dirname, '..', 'src', 'handler.ts'),
-      memorySize: 512,
-      timeout: Duration.seconds(30),
+      memorySize: 1024,
+      timeout: Duration.seconds(60),
       tracing: lambda.Tracing.ACTIVE,
+      layers: [duckdbLayer],
       environment: {
         POWERTOOLS_SERVICE_NAME: 'ResidentialCRM',
         POWERTOOLS_METRICS_NAMESPACE: 'ResidentialCRM',
@@ -69,9 +79,10 @@ export class ResidentialCrmStack extends Stack {
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'handler',
       entry: path.join(__dirname, '..', 'src', 'webhook-handler-raw.ts'),
-      memorySize: 512,
-      timeout: Duration.seconds(30),
+      memorySize: 1024,
+      timeout: Duration.seconds(60),
       tracing: lambda.Tracing.ACTIVE,
+      layers: [duckdbLayer],
       environment: {
         POWERTOOLS_SERVICE_NAME: 'ResidentialCRM',
         POWERTOOLS_METRICS_NAMESPACE: 'ResidentialCRM',

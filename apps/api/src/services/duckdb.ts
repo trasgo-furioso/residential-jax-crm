@@ -1,16 +1,18 @@
 import { resolveQueryTableUrl } from '@/services/ipfs.js';
-
-// Lazy-load duckdb to avoid crashing Lambda at startup when the native
-// module is unavailable (it is listed in externalModules for esbuild).
-let duckdbModule: typeof import('duckdb') | null = null;
+import { writeFileSync, existsSync } from 'fs';
+// duckdb is a native CJS addon provided by a Lambda Layer (tobilg/duckdb-nodejs-layer).
+// Lazy-loaded to avoid crashes if the layer is missing (e.g. local dev without duckdb).
+let duckdb: any = null;
 let duckdbLoadFailed = false;
 
-async function getDuckDBModule(): Promise<typeof import('duckdb') | null> {
-  if (duckdbModule) return duckdbModule;
+function loadDuckDB(): any {
+  if (duckdb) return duckdb;
   if (duckdbLoadFailed) return null;
   try {
-    duckdbModule = await import('duckdb');
-    return duckdbModule;
+    // esbuild externalises 'duckdb'; the Lambda Layer provides it at /opt/nodejs/node_modules/duckdb
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    duckdb = require('duckdb');
+    return duckdb;
   } catch (err) {
     duckdbLoadFailed = true;
     console.error('[duckdb] Failed to load native duckdb module:', err);
@@ -18,17 +20,19 @@ async function getDuckDBModule(): Promise<typeof import('duckdb') | null> {
   }
 }
 
-let db: any | null = null;
-let conn: any | null = null;
+// ── Module-scope singletons (reused across warm Lambda invocations) ──────────
+let db: any = null;
+let conn: any = null;
 let initialized = false;
 let currentParquetUrl: string | null = null;
 
-async function getConnection(): Promise<any | null> {
-  const mod = await getDuckDBModule();
+const PARQUET_PATH = '/tmp/query-table.parquet';
+
+function getConnection(): any {
+  const mod = loadDuckDB();
   if (!mod) return null;
-  const DuckDB = mod.default ?? mod;
   if (!db) {
-    db = new DuckDB.Database(':memory:');
+    db = new mod.Database(':memory:');
   }
   if (!conn) {
     conn = db.connect();
@@ -36,22 +40,22 @@ async function getConnection(): Promise<any | null> {
   return conn;
 }
 
-async function runQuery<T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T[]> {
-  const c = await getConnection();
-  if (!c) return [];
+function runQuery<T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T[]> {
+  const c = getConnection();
+  if (!c) return Promise.resolve([]);
   return new Promise((resolve, reject) => {
-    c.all(sql, ...params, (err: any, rows: any) => {
+    c.all(sql, ...params, (err: Error | null, rows: any) => {
       if (err) reject(err);
       else resolve((rows ?? []) as T[]);
     });
   });
 }
 
-async function runExec(sql: string): Promise<void> {
-  const c = await getConnection();
-  if (!c) return;
+function runExec(sql: string): Promise<void> {
+  const c = getConnection();
+  if (!c) return Promise.resolve();
   return new Promise((resolve, reject) => {
-    c.exec(sql, (err: any) => {
+    c.exec(sql, (err: Error | null) => {
       if (err) reject(err);
       else resolve();
     });
@@ -59,20 +63,37 @@ async function runExec(sql: string): Promise<void> {
 }
 
 /**
- * Initialize DuckDB with httpfs extension and create a VIEW over the
- * remote Parquet file served from Filebase via IPNS.
+ * Download the Parquet file from IPFS gateway to /tmp.
+ */
+async function downloadParquet(url: string): Promise<boolean> {
+  try {
+    console.log(`[duckdb] Downloading Parquet from ${url}`);
+    const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+    if (!response.ok) {
+      console.error(`[duckdb] Failed to download Parquet: ${response.status} ${response.statusText}`);
+      return false;
+    }
+    const buffer = Buffer.from(await response.arrayBuffer());
+    writeFileSync(PARQUET_PATH, buffer);
+    console.log(`[duckdb] Downloaded Parquet (${(buffer.length / 1024 / 1024).toFixed(1)} MB) to ${PARQUET_PATH}`);
+    return true;
+  } catch (err) {
+    console.error('[duckdb] Error downloading Parquet:', err);
+    return false;
+  }
+}
+
+/**
+ * Download Parquet from IPFS to /tmp and create a VIEW over it.
  *
- * Resolves the Parquet URL from IPNS index.json (cached).
+ * Resolves the Parquet URL from IPNS index.json (cached 5 min).
  * Returns false if the query table URL cannot be resolved (graceful degradation).
  */
 async function ensureInitialized(): Promise<boolean> {
-  if (initialized && currentParquetUrl) return true;
+  if (initialized && currentParquetUrl && existsSync(PARQUET_PATH)) return true;
 
   // Bail out early if the native duckdb module is not available
-  const mod = await getDuckDBModule();
-  if (!mod) return false;
-
-  await runExec("INSTALL httpfs; LOAD httpfs;");
+  if (!loadDuckDB()) return false;
 
   const parquetUrl = await resolveQueryTableUrl();
   if (!parquetUrl) {
@@ -80,14 +101,15 @@ async function ensureInitialized(): Promise<boolean> {
     return false;
   }
 
-  // Only recreate the view if the URL changed
-  if (parquetUrl !== currentParquetUrl) {
-    await runExec(`
-      CREATE OR REPLACE VIEW properties AS
-      SELECT * FROM read_parquet('${parquetUrl}');
-    `);
+  // Re-download if URL changed or file missing
+  if (parquetUrl !== currentParquetUrl || !existsSync(PARQUET_PATH)) {
+    const ok = await downloadParquet(parquetUrl);
+    if (!ok) return false;
     currentParquetUrl = parquetUrl;
   }
+
+  // Create/replace the view pointing at the local file
+  await runExec(`CREATE OR REPLACE VIEW properties AS SELECT * FROM read_parquet('${PARQUET_PATH}')`);
 
   initialized = true;
   return true;
