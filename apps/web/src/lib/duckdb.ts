@@ -95,12 +95,19 @@ async function initDuckDB(): Promise<duckdbWasm.AsyncDuckDBConnection> {
   // Dynamic import to avoid SSR issues with WASM
   const duckdb = await import('@duckdb/duckdb-wasm');
 
-  const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
+  const logger = new duckdb.ConsoleLogger();
 
+  // Use jsdelivr bundles but construct worker via Blob URL to avoid CORS
+  const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
   const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
 
-  const worker = new Worker(bundle.mainWorker!);
-  const logger = new duckdb.ConsoleLogger();
+  // Fetch the worker script as text and create a same-origin Blob URL
+  const workerScriptResponse = await fetch(bundle.mainWorker!);
+  const workerScriptText = await workerScriptResponse.text();
+  const workerBlob = new Blob([workerScriptText], { type: 'application/javascript' });
+  const workerUrl = URL.createObjectURL(workerBlob);
+  const worker = new Worker(workerUrl);
+
   const db = new duckdb.AsyncDuckDB(logger, worker);
 
   await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
