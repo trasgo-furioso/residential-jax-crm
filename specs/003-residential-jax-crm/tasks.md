@@ -213,6 +213,22 @@
 
 ---
 
+## Phase 13: Integration Contract Fixes (added 2026-08-23)
+
+**Purpose**: Align CRM with actual pipeline integration contract discovered during deployment
+**Agent**: `metagross` | **Skills**: `apply-engineering-guidelines`, `build-frontend-backends`
+
+- [x] T072 Add raw webhook Lambda handler in apps/api/src/webhook-handler-raw.ts (plain HTTP POST receiver for pipeline webhook, bypasses tRPC — HMAC verify, dedup, process, return 200/401/500)
+- [x] T073 Add /webhook/pipeline route in CDK stack apps/api/infra/stack.ts (new Lambda + API Gateway POST route alongside tRPC default route)
+- [x] T074 Update server-side DuckDB in apps/api/src/services/duckdb.ts to follow IPNS contract (resolve IPNS → fetch index.json → extract query_table_cid → load Parquet from ipfs.filebase.io/ipfs/{cid})
+- [x] T075 Update client-side DuckDB in apps/web/src/lib/duckdb.ts to follow same IPNS → index.json → query_table_cid contract
+- [x] T076 Redeploy CDK stack with new webhook Lambda and updated IPNS env vars (IPNS key: k51qzi5uqu5dggq0h9xylfc0kr0kpw7i4zcacnfrymz9sjv7mpeze4femaujcz)
+- [x] T077 Redeploy Amplify frontend with real IPNS key in NEXT_PUBLIC_IPNS_QUERY_TABLE (build 26 triggered)
+- [ ] T078 Register CRM webhook URL (https://...execute-api.../webhook/pipeline) in pipeline's WEBHOOK_URLS env var on EC2
+- [ ] T079 Trigger pipeline run and verify end-to-end: webhook received → notification generated → properties visible on map
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
