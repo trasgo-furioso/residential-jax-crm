@@ -34,6 +34,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <style>{`.nav-link:hover { background-color: #2a2a4a; }`}</style>
+      </head>
       <body style={{ margin: 0, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
         <div style={{ display: 'flex', minHeight: '100vh' }}>
           {/* Sidebar */}
@@ -67,6 +70,7 @@ export default function RootLayout({
                 <li key={item.href}>
                   <a
                     href={item.href}
+                    className="nav-link"
                     style={{
                       display: 'block',
                       padding: '10px 20px',
@@ -74,13 +78,6 @@ export default function RootLayout({
                       textDecoration: 'none',
                       fontSize: 14,
                       fontWeight: 500,
-                      transition: 'background-color 0.15s',
-                    }}
-                    onMouseEnter={(e) => {
-                      (e.target as HTMLElement).style.backgroundColor = '#2a2a4a';
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.target as HTMLElement).style.backgroundColor = 'transparent';
                     }}
                   >
                     {item.label}
