@@ -1,15 +1,34 @@
-import duckdb from 'duckdb';
-import type { DuckDbError, TableData } from 'duckdb';
 import { resolveQueryTableUrl } from '@/services/ipfs.js';
 
-let db: duckdb.Database | null = null;
-let conn: duckdb.Connection | null = null;
+// Lazy-load duckdb to avoid crashing Lambda at startup when the native
+// module is unavailable (it is listed in externalModules for esbuild).
+let duckdbModule: typeof import('duckdb') | null = null;
+let duckdbLoadFailed = false;
+
+async function getDuckDBModule(): Promise<typeof import('duckdb') | null> {
+  if (duckdbModule) return duckdbModule;
+  if (duckdbLoadFailed) return null;
+  try {
+    duckdbModule = await import('duckdb');
+    return duckdbModule;
+  } catch (err) {
+    duckdbLoadFailed = true;
+    console.error('[duckdb] Failed to load native duckdb module:', err);
+    return null;
+  }
+}
+
+let db: any | null = null;
+let conn: any | null = null;
 let initialized = false;
 let currentParquetUrl: string | null = null;
 
-function getConnection(): duckdb.Connection {
+async function getConnection(): Promise<any | null> {
+  const mod = await getDuckDBModule();
+  if (!mod) return null;
+  const DuckDB = mod.default ?? mod;
   if (!db) {
-    db = new duckdb.Database(':memory:');
+    db = new DuckDB.Database(':memory:');
   }
   if (!conn) {
     conn = db.connect();
@@ -17,20 +36,22 @@ function getConnection(): duckdb.Connection {
   return conn;
 }
 
-function runQuery<T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T[]> {
+async function runQuery<T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T[]> {
+  const c = await getConnection();
+  if (!c) return [];
   return new Promise((resolve, reject) => {
-    const c = getConnection();
-    c.all(sql, ...params, (err: DuckDbError | null, rows: TableData) => {
+    c.all(sql, ...params, (err: any, rows: any) => {
       if (err) reject(err);
       else resolve((rows ?? []) as T[]);
     });
   });
 }
 
-function runExec(sql: string): Promise<void> {
+async function runExec(sql: string): Promise<void> {
+  const c = await getConnection();
+  if (!c) return;
   return new Promise((resolve, reject) => {
-    const c = getConnection();
-    c.exec(sql, (err: DuckDbError | null) => {
+    c.exec(sql, (err: any) => {
       if (err) reject(err);
       else resolve();
     });
@@ -46,6 +67,10 @@ function runExec(sql: string): Promise<void> {
  */
 async function ensureInitialized(): Promise<boolean> {
   if (initialized && currentParquetUrl) return true;
+
+  // Bail out early if the native duckdb module is not available
+  const mod = await getDuckDBModule();
+  if (!mod) return false;
 
   await runExec("INSTALL httpfs; LOAD httpfs;");
 
