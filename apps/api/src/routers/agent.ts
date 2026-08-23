@@ -106,7 +106,7 @@ export const agentRouter = router({
           queryProperties: tool({
             description:
               'Query the property database with an optional SQL WHERE clause. Returns matching properties with provenance data.',
-            parameters: z.object({
+            inputSchema: z.object({
               sql_where: z
                 .string()
                 .optional()
@@ -149,7 +149,7 @@ export const agentRouter = router({
           getOpportunityStatus: tool({
             description:
               'Check if a property has an existing CRM opportunity and return its stage/status.',
-            parameters: z.object({
+            inputSchema: z.object({
               parcel_id: z
                 .string()
                 .describe('The parcel ID of the property to check'),
