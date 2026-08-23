@@ -45,7 +45,7 @@ export async function resolveQueryTableUrl(
   }
 
   try {
-    const indexUrl = `${FILEBASE_GATEWAY}/ipns/${ipnsKey}/index.json`;
+    const indexUrl = `${FILEBASE_GATEWAY}/ipns/${ipnsKey}`;
     const response = await fetch(indexUrl, { signal: AbortSignal.timeout(10_000) });
     if (!response.ok) {
       console.warn(`[ipfs] Failed to fetch index.json: ${response.status} ${response.statusText}`);

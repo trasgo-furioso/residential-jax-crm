@@ -33,7 +33,7 @@ async function resolveParquetUrl(): Promise<string | null> {
   }
 
   try {
-    const indexUrl = `https://ipfs.filebase.io/ipns/${ipnsKey}/index.json`;
+    const indexUrl = `https://ipfs.filebase.io/ipns/${ipnsKey}`;
     const response = await fetch(indexUrl, { signal: AbortSignal.timeout(10_000) });
     if (!response.ok) {
       console.warn(`[duckdb] Failed to fetch index.json: ${response.status}`);
