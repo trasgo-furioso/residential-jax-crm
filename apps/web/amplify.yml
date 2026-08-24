@@ -7,7 +7,7 @@ frontend:
         - pnpm install --frozen-lockfile
     build:
       commands:
-        - pnpm turbo run build --filter=@crm/web...
+        - NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL NEXT_PUBLIC_IPNS_QUERY_TABLE=$NEXT_PUBLIC_IPNS_QUERY_TABLE NEXT_PUBLIC_IPNS_OPEN_DATA=$NEXT_PUBLIC_IPNS_OPEN_DATA pnpm turbo run build --filter=@crm/web...
     postBuild:
       commands:
         - rm -rf apps/web/.amplify

@@ -18,6 +18,27 @@ interface IndexJson {
 }
 
 /**
+ * Guard: ensure a URL is safe for data fetching (not the CRM's own domain or
+ * an unexpected domain that could hijack navigation).
+ * Only allow IPFS gateways, Filebase, and known API domains.
+ */
+function isSafeDataUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const safeHosts = [
+      'ipfs.filebase.io',
+      's3.filebase.io',
+      'cloudflare-ipfs.com',
+      'gateway.pinata.cloud',
+      'dweb.link',
+    ];
+    return safeHosts.some((h) => parsed.hostname === h || parsed.hostname.endsWith(`.${h}`));
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Resolve IPNS key to fetch index.json, extract query_table_url or query_table_cid.
  * Caches the result for 5 minutes.
  */
@@ -40,15 +61,19 @@ async function resolveParquetUrl(): Promise<string | null> {
       console.info('[duckdb] Resolving IPNS via API...');
       const response = await fetch(`${apiUrl}/properties.getQueryTableUrl`, {
         signal: AbortSignal.timeout(10_000),
+        redirect: 'error', // prevent following redirects to unexpected domains
       });
       if (response.ok) {
         const data = await response.json();
         const url = data?.result?.data?.url;
-        if (url) {
+        if (url && isSafeDataUrl(url)) {
           resolvedParquetUrl = url;
           ipnsResolveTimestamp = now;
           console.info('[duckdb] Parquet URL from API:', url);
           return url;
+        }
+        if (url) {
+          console.warn('[duckdb] API returned unsafe Parquet URL, ignoring:', url);
         }
       }
     }
@@ -60,7 +85,10 @@ async function resolveParquetUrl(): Promise<string | null> {
   try {
     console.info('[duckdb] Falling back to IPNS gateway:', ipnsKey);
     const indexUrl = `https://ipfs.filebase.io/ipns/${ipnsKey}`;
-    const response = await fetch(indexUrl, { signal: AbortSignal.timeout(3_000) });
+    const response = await fetch(indexUrl, {
+      signal: AbortSignal.timeout(3_000),
+      redirect: 'error', // prevent following redirects to unexpected domains
+    });
     if (!response.ok) {
       console.warn(`[duckdb] IPNS fetch failed: ${response.status}`);
     } else {
@@ -74,13 +102,17 @@ async function resolveParquetUrl(): Promise<string | null> {
         url = `https://ipfs.filebase.io/ipfs/${index.query_table_cid}`;
       }
 
-      if (url) {
+      if (url && isSafeDataUrl(url)) {
         resolvedParquetUrl = url;
         ipnsResolveTimestamp = now;
         console.info('[duckdb] Parquet URL from IPNS fallback:', url);
         return url;
       }
-      console.warn('[duckdb] index.json missing query_table_cid and query_table_url');
+      if (url) {
+        console.warn('[duckdb] IPNS returned unsafe Parquet URL, ignoring:', url);
+      } else {
+        console.warn('[duckdb] index.json missing query_table_cid and query_table_url');
+      }
     }
   } catch (err) {
     console.warn('[duckdb] IPNS gateway fallback also failed:', err instanceof Error ? err.message : err);

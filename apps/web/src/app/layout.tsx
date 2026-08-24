@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 import nextDynamic from 'next/dynamic';
 
+const NavigationGuard = nextDynamic(() => import('@/components/NavigationGuard'), {
+  ssr: false,
+});
 const NotificationBell = nextDynamic(() => import('@/components/notifications/NotificationBell'), {
   ssr: false,
 });
@@ -38,6 +41,7 @@ export default function RootLayout({
         <style>{`.nav-link:hover { background-color: #2a2a4a; }`}</style>
       </head>
       <body style={{ margin: 0, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+        <NavigationGuard />
         <div style={{ display: 'flex', minHeight: '100vh' }}>
           {/* Sidebar */}
           <nav
