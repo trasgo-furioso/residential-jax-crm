@@ -12,6 +12,7 @@ import * as apigwv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createDashboard } from './dashboard.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -147,5 +148,8 @@ export class ResidentialCrmStack extends Stack {
       value: httpApi.url ?? '',
       description: 'HTTP API Gateway URL',
     });
+
+    // ── CloudWatch Dashboard ────────────────────────────────────────────
+    createDashboard(this, 'CrmDashboard');
   }
 }

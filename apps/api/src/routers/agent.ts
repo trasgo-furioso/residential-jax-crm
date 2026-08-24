@@ -1,6 +1,5 @@
-// @ts-nocheck
 import { z } from 'zod';
-import { generateText, tool } from 'ai';
+import { type LanguageModel, generateText, tool } from 'ai';
 import { publicProcedure, router } from './trpc.js';
 import {
   queryProperties,
@@ -16,20 +15,20 @@ import { eq } from 'drizzle-orm';
  * Prefers Anthropic when ANTHROPIC_API_KEY is set,
  * falls back to OpenAI, then Amazon Bedrock.
  */
-async function resolveModel(): Promise<any> {
+async function resolveModel(): Promise<LanguageModel> {
   if (process.env.ANTHROPIC_API_KEY) {
     const { anthropic } = await import('@ai-sdk/anthropic');
-    return anthropic('claude-haiku-4-5-20251001') ;
+    return anthropic('claude-haiku-4-5-20251001') as LanguageModel;
   }
   if (process.env.OPENAI_API_KEY) {
     const { createOpenAI } = await import('@ai-sdk/openai');
     const provider = createOpenAI();
-    return provider.languageModel(process.env.OPENAI_MODEL_ID ?? 'gpt-4o');
+    return provider.languageModel(process.env.OPENAI_MODEL_ID ?? 'gpt-4o') as LanguageModel;
   }
   if (process.env.BEDROCK_MODEL_ID) {
     const { createAmazonBedrock } = await import('@ai-sdk/amazon-bedrock');
     const provider = createAmazonBedrock();
-    return provider.languageModel(process.env.BEDROCK_MODEL_ID);
+    return provider.languageModel(process.env.BEDROCK_MODEL_ID) as LanguageModel;
   }
   throw new Error(
     'No AI provider configured. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or BEDROCK_MODEL_ID.',
