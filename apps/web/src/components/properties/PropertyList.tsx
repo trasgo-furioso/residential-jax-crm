@@ -348,15 +348,15 @@ export default function PropertyList({
                   <td style={tdStyle}>
                     {p.address_street}, {p.address_city} {p.address_zip}
                   </td>
-                  <td style={tdStyle}>{p.current_owner_name}</td>
+                  <td style={tdStyle}>{p.current_owner_name ?? '—'}</td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {formatCurrency(p.assessed_value)}
+                    {p.assessed_value != null ? formatCurrency(p.assessed_value) : '—'}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {p.ownership_tenure_years}
+                    {p.ownership_tenure_years != null ? p.ownership_tenure_years : '—'}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {p.roof_age_years}
+                    {p.roof_age_years != null ? p.roof_age_years : '—'}
                   </td>
                   {showMatchScore && (
                     <td style={{ ...tdStyle, textAlign: 'center' }}>

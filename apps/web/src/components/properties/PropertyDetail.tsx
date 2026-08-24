@@ -30,7 +30,8 @@ interface PropertyDetailProps {
   onClose?: () => void;
 }
 
-function formatCurrency(value: number): string {
+function formatCurrency(value: number | null | undefined): string {
+  if (value == null || isNaN(value)) return '—';
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -71,9 +72,15 @@ const valueStyle: React.CSSProperties = {
   textAlign: 'right',
 };
 
-function Field({ label, value }: { label: string; value: string | number | boolean }) {
-  const display =
-    typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value);
+function Field({ label, value }: { label: string; value: string | number | boolean | null | undefined }) {
+  let display: string;
+  if (value == null || value === '') {
+    display = '—';
+  } else if (typeof value === 'boolean') {
+    display = value ? 'Yes' : 'No';
+  } else {
+    display = String(value);
+  }
   return (
     <div style={fieldRowStyle}>
       <span style={labelStyle}>{label}</span>
@@ -189,7 +196,7 @@ export default function PropertyDetail({ property, onClose }: PropertyDetailProp
       <div style={sectionStyle}>
         <div style={sectionTitleStyle}>Ownership</div>
         <Field label="Current Owner" value={property.current_owner_name} />
-        <Field label="Tenure" value={`${property.ownership_tenure_years} years`} />
+        <Field label="Tenure" value={property.ownership_tenure_years != null ? `${property.ownership_tenure_years} years` : null} />
         <Field label="Regional Owner" value={property.is_regional_owner} />
       </div>
 
@@ -198,7 +205,7 @@ export default function PropertyDetail({ property, onClose }: PropertyDetailProp
         <div style={sectionTitleStyle}>Property</div>
         <Field label="Year Built" value={property.year_built} />
         <Field label="Square Feet" value={property.sqft?.toLocaleString() ?? '—'} />
-        <Field label="Roof Age" value={`${property.roof_age_years} years`} />
+        <Field label="Roof Age" value={property.roof_age_years != null ? `${property.roof_age_years} years` : null} />
       </div>
 
       {/* Location Section */}

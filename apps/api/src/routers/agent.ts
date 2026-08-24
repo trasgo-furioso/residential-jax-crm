@@ -83,6 +83,18 @@ When the user asks about properties, use the queryProperties tool to search the 
 Build a SQL WHERE clause using the column names above. Use DuckDB SQL syntax.
 Always limit results to a reasonable number (default 20) unless the user asks for more.
 
+IMPORTANT — Price / value filtering:
+assessed_value and market_value are NUMERIC columns storing raw dollar amounts as numbers (no $ sign, no commas).
+When the user says "under $200k" or "below 200,000", use a simple numeric comparison:
+  assessed_value < 200000
+Do NOT use CAST, REPLACE, or string functions on these columns — they are already numeric.
+Use strict inequality (< or >) so that "under $200k" excludes $200,000 exactly.
+
+Examples:
+- "properties under $200k" → assessed_value < 200000
+- "homes between $150k and $300k" → assessed_value >= 150000 AND assessed_value <= 300000
+- "over $500k" → assessed_value > 500000
+
 When the user asks about the CRM status of a specific property, use the getOpportunityStatus tool.
 
 Respond conversationally. Summarize the results clearly. Mention how many properties matched.
