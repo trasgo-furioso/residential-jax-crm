@@ -33,11 +33,34 @@ async function resolveParquetUrl(): Promise<string | null> {
     return resolvedParquetUrl;
   }
 
-  // Try IPNS resolution with generous timeout (gateway can be slow from browsers)
+  // Primary: fetch from tRPC API which resolves IPNS server-side (fast, no browser gateway timeout)
   try {
-    console.info('[duckdb] Resolving IPNS:', ipnsKey);
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (apiUrl) {
+      console.info('[duckdb] Resolving IPNS via API...');
+      const response = await fetch(`${apiUrl}/properties.getQueryTableUrl`, {
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const url = data?.result?.data?.url;
+        if (url) {
+          resolvedParquetUrl = url;
+          ipnsResolveTimestamp = now;
+          console.info('[duckdb] Parquet URL from API:', url);
+          return url;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[duckdb] API resolution failed, trying IPNS gateway fallback:', err instanceof Error ? err.message : err);
+  }
+
+  // Fallback: direct IPNS gateway resolution (slow from browsers, 3s timeout)
+  try {
+    console.info('[duckdb] Falling back to IPNS gateway:', ipnsKey);
     const indexUrl = `https://ipfs.filebase.io/ipns/${ipnsKey}`;
-    const response = await fetch(indexUrl, { signal: AbortSignal.timeout(30_000) });
+    const response = await fetch(indexUrl, { signal: AbortSignal.timeout(3_000) });
     if (!response.ok) {
       console.warn(`[duckdb] IPNS fetch failed: ${response.status}`);
     } else {
@@ -54,36 +77,13 @@ async function resolveParquetUrl(): Promise<string | null> {
       if (url) {
         resolvedParquetUrl = url;
         ipnsResolveTimestamp = now;
-        console.info('[duckdb] Parquet URL resolved:', url);
+        console.info('[duckdb] Parquet URL from IPNS fallback:', url);
         return url;
       }
       console.warn('[duckdb] index.json missing query_table_cid and query_table_url');
     }
   } catch (err) {
-    console.warn('[duckdb] IPNS resolution failed, trying API fallback:', err instanceof Error ? err.message : err);
-  }
-
-  // Fallback: fetch index from the tRPC API which resolves server-side (faster, no IPNS gateway timeout)
-  try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-    if (apiUrl) {
-      console.info('[duckdb] Trying server-side IPNS resolution via API...');
-      const response = await fetch(`${apiUrl}/properties.getQueryTableUrl`, {
-        signal: AbortSignal.timeout(15_000),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        const url = data?.result?.data?.url;
-        if (url) {
-          resolvedParquetUrl = url;
-          ipnsResolveTimestamp = now;
-          console.info('[duckdb] Parquet URL from API fallback:', url);
-          return url;
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('[duckdb] API fallback also failed:', err instanceof Error ? err.message : err);
+    console.warn('[duckdb] IPNS gateway fallback also failed:', err instanceof Error ? err.message : err);
   }
 
   return resolvedParquetUrl ?? null;

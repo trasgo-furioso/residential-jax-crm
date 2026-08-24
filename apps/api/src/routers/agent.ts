@@ -55,6 +55,31 @@ You have access to a DuckDB database of properties with the following columns:
 - provenance_last_run (TEXT) — ISO timestamp of last pipeline run
 - provenance_timestamps (TEXT) — JSON of per-source collection timestamps
 
+IMPORTANT — Jacksonville neighborhoods:
+All properties in the database have address_city = 'Jacksonville'. There are NO separate cities
+for neighborhoods. When a user mentions a neighborhood or area name, do NOT use address_city to
+filter by that name. Instead, use the ZIP code mapping below with address_zip IN (...).
+
+Jacksonville neighborhood to ZIP code mapping:
+- Arlington: 32211, 32225, 32246
+- Riverside / Avondale: 32204, 32205
+- San Marco: 32207
+- Springfield: 32206
+- Ortega: 32210
+- Mandarin: 32223, 32257, 32258
+- Westside: 32210, 32221
+- Northside: 32218, 32219, 32220
+- Beaches (Jacksonville Beach, Neptune Beach, Atlantic Beach): 32233, 32250, 32266
+- Southside: 32216, 32246, 32256
+
+Example: if the user asks about "Arlington properties", use:
+  address_zip IN ('32211','32225','32246')
+Do NOT use: address_city = 'Arlington'
+
+If a neighborhood is not in the list above, try matching with:
+  address_street LIKE '%NEIGHBORHOOD_NAME%'
+as a fallback, since some street names contain area references.
+
 When the user asks about properties, use the queryProperties tool to search the database.
 Build a SQL WHERE clause using the column names above. Use DuckDB SQL syntax.
 Always limit results to a reasonable number (default 20) unless the user asks for more.
@@ -111,7 +136,7 @@ export const agentRouter = router({
                 .string()
                 .optional()
                 .describe(
-                  'SQL WHERE clause to filter properties (e.g. "roof_age_years > 15 AND address_city = \'Arlington\'")',
+                  'SQL WHERE clause to filter properties (e.g. "roof_age_years > 15 AND address_zip IN (\'32211\',\'32225\',\'32246\')")',
                 ),
               limit: z
                 .number()

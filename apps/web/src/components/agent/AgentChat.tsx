@@ -124,12 +124,16 @@ export default function AgentChat({ onClose }: { onClose: () => void }) {
 
     try {
       const result: AgentResponse = await agentChat(text);
+      const responseText =
+        !result.response && (!result.properties || result.properties.length === 0)
+          ? 'No matching properties found. Try adjusting your search criteria or asking about a different area.'
+          : result.response;
       setMessages((prev) =>
         prev.map((m) =>
           m.id === loadingMsg.id
             ? {
                 ...m,
-                text: result.response,
+                text: responseText,
                 properties: result.properties,
                 loading: false,
               }
