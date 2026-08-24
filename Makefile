@@ -1,14 +1,9 @@
 # Residential Property Acquisition CRM — Build, Deploy & Run
 # Usage: make <target>
 
-# ── Configuration ──────────────────────────────────────────────────────────────
-IPNS_KEY := k51qzi5uqu5dggq0h9xylfc0kr0kpw7i4zcacnfrymz9sjv7mpeze4femaujcz
-API_URL := https://42trwtmqqe.execute-api.us-east-2.amazonaws.com
-DB_URL := postgresql://neondb_owner:npg_ZO8JUqnHLep5@ep-red-sky-axw1khsx.c-4.us-east-2.aws.neon.tech/neondb?sslmode=require
-WEBHOOK_SECRET := 406f09cb3cd287b2787afa7f6e903752fa61a07740f6e89781f006b51279f659
-AMPLIFY_APP_ID := d2nys96ft16522
-AMPLIFY_BRANCH := feature/003-residential-jax-crm
-REGION := us-east-2
+# ── Configuration (loaded from .env) ──────────────────────────────────────────
+-include .env
+export
 
 # ── Local Development ─────────────────────────────────────────────────────────
 
@@ -140,6 +135,6 @@ verify: verify-api verify-web verify-ipns ## Run all verification checks
 
 .PHONY: help
 help: ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(firstword $(MAKEFILE_LIST)) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 .DEFAULT_GOAL := help
