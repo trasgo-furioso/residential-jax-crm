@@ -109,7 +109,7 @@ async function ensureInitialized(): Promise<boolean> {
   }
 
   // Create/replace the view pointing at the local file
-  await runExec(`CREATE OR REPLACE VIEW properties AS SELECT * FROM read_parquet('${PARQUET_PATH}')`);
+  await runExec(`CREATE OR REPLACE VIEW properties AS SELECT *, street AS address_street FROM read_parquet('${PARQUET_PATH}')`);
 
   initialized = true;
   return true;

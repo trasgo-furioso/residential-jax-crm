@@ -131,7 +131,7 @@ async function ensureView(): Promise<duckdbWasm.AsyncDuckDBConnection | null> {
   if (!viewCreated) {
     await conn.query(`
       CREATE OR REPLACE VIEW properties AS
-      SELECT * FROM read_parquet('${url}');
+      SELECT *, street AS address_street FROM read_parquet('${url}');
     `);
     viewCreated = true;
   }
