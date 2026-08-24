@@ -42,6 +42,7 @@ export type OpportunityStage =
 export interface OpportunityRecord {
   id: string;
   parcel_id: string;
+  address: string | null;
   stage: OpportunityStage;
   owner_name: string | null;
   owner_contact_email: string | null;

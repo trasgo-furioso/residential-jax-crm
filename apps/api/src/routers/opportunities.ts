@@ -163,12 +163,16 @@ export const opportunitiesRouter = router({
       const props = await queryProperties();
       const property = props.find((p) => p.parcel_id === input.parcel_id);
       const ownerName = property?.current_owner_name ?? null;
+      const address = property
+        ? `${property.address_street ?? ''}, ${property.address_city ?? ''} ${property.address_zip ?? ''}`.replace(/^,\s*/, '').trim()
+        : null;
 
       // Insert new opportunity
       const created = await db
         .insert(opportunities)
         .values({
           parcel_id: input.parcel_id,
+          address,
           stage: 'identified',
           owner_name: ownerName,
           criteria_match_score: input.criteria_match_score

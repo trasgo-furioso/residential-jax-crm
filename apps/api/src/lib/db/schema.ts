@@ -54,6 +54,7 @@ export const notifications = pgTable('notifications', {
 export const opportunities = pgTable('opportunities', {
   id: uuid('id').defaultRandom().primaryKey(),
   parcel_id: text('parcel_id').notNull().unique(),
+  address: text('address'),
   stage: text('stage').notNull().default('identified'),
   owner_name: text('owner_name'),
   owner_contact_email: text('owner_contact_email'),

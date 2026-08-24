@@ -106,7 +106,7 @@ export default function OpportunityCard({
         )}
       </div>
 
-      {/* Parcel ID */}
+      {/* Address */}
       <div
         style={{
           fontSize: 13,
@@ -115,7 +115,7 @@ export default function OpportunityCard({
           marginBottom: 4,
         }}
       >
-        {opportunity.parcel_id}
+        {opportunity.address || opportunity.parcel_id}
       </div>
 
       {/* Owner */}
