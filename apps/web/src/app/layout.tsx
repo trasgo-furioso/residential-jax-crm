@@ -38,6 +38,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/* CSP: block top-level navigation to external domains (prevents DuckDB-WASM httpfs redirect hijack) */}
+        <meta
+          httpEquiv="Content-Security-Policy"
+          content="navigate-to 'self' https://feature-003-residential-jax-crm.d2nys96ft16522.amplifyapp.com https://basemaps.cartocdn.com;"
+        />
         <style>{`.nav-link:hover { background-color: #2a2a4a; }`}</style>
       </head>
       <body style={{ margin: 0, fontFamily: 'system-ui, -apple-system, sans-serif' }}>

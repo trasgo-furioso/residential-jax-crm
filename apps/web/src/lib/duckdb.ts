@@ -153,6 +153,46 @@ async function initDuckDB(): Promise<duckdbWasm.AsyncDuckDBConnection> {
 }
 
 /**
+ * Pre-flight check: send a HEAD request to the Parquet URL and verify that
+ * the final (post-redirect) URL is still on an allowed IPFS gateway host AND
+ * the response Content-Type is NOT text/html.  This catches the scenario where
+ * an IPFS gateway 3xx-redirects to CloudFront, which serves an HTML page that
+ * causes DuckDB-WASM's httpfs to trigger a top-level navigation.
+ *
+ * Returns the validated URL (which may be the redirect target) or null.
+ */
+async function validateParquetUrl(url: string): Promise<string | null> {
+  try {
+    const resp = await fetch(url, {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(8_000),
+      // allow redirects so we can inspect the final URL
+    });
+
+    // Check the final URL after redirects
+    const finalUrl = resp.url || url;
+    if (!isSafeDataUrl(finalUrl)) {
+      console.error('[duckdb] Parquet URL redirected to unsafe host, blocking:', finalUrl);
+      return null;
+    }
+
+    // Check Content-Type — HTML means the gateway returned an error page
+    const ct = resp.headers.get('content-type') ?? '';
+    if (ct.includes('text/html')) {
+      console.error('[duckdb] Parquet URL returned text/html (likely gateway error page), blocking:', finalUrl);
+      return null;
+    }
+
+    return finalUrl;
+  } catch (err) {
+    console.warn('[duckdb] Pre-flight validation failed, using original URL cautiously:', err instanceof Error ? err.message : err);
+    // If the HEAD request itself fails (network error, timeout), still allow
+    // DuckDB to try — the query will fail safely with an error, not a redirect.
+    return url;
+  }
+}
+
+/**
  * Ensure DuckDB is initialized and the Parquet URL is resolved.
  * Does NOT create a VIEW — queries use read_parquet() directly with LIMIT
  * so DuckDB-WASM can leverage HTTP range requests (lazy loading).
@@ -163,8 +203,19 @@ export async function ensureReady(): Promise<{ conn: duckdbWasm.AsyncDuckDBConne
     console.warn('[duckdb] Could not resolve query table URL from IPNS — returning empty data');
     return null;
   }
+
+  // Validate the URL won't redirect to a non-IPFS domain (e.g. CloudFront)
+  const validatedUrl = await validateParquetUrl(url);
+  if (!validatedUrl) {
+    console.error('[duckdb] Parquet URL failed validation — returning empty data to prevent redirect');
+    // Clear the cached URL so next attempt re-resolves from IPNS
+    resolvedParquetUrl = null;
+    ipnsResolveTimestamp = 0;
+    return null;
+  }
+
   const conn = await getConnection();
-  return { conn, url };
+  return { conn, url: validatedUrl };
 }
 
 async function getConnection(): Promise<duckdbWasm.AsyncDuckDBConnection> {

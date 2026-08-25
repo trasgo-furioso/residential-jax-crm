@@ -18,7 +18,7 @@ const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json
 const JACKSONVILLE_CENTER = {
   longitude: -81.6557,
   latitude: 30.3322,
-  zoom: 15,
+  zoom: 16,
 };
 
 interface PropertyMapProps {
