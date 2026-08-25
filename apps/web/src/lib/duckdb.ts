@@ -9,6 +9,40 @@ let initPromise: Promise<duckdbWasm.AsyncDuckDBConnection> | null = null;
 let resolvedParquetUrl: string | null = null;
 let ipnsResolveTimestamp = 0;
 const IPNS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const LOCALSTORAGE_CACHE_KEY = 'elephant-ipns-cache';
+const LOCALSTORAGE_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+interface LocalStorageIpnsCache {
+  url: string;
+  timestamp: number;
+}
+
+/** Read IPNS URL from localStorage if valid and not expired. */
+function readLocalStorageCache(): string | null {
+  try {
+    if (typeof window === 'undefined') return null;
+    const raw = localStorage.getItem(LOCALSTORAGE_CACHE_KEY);
+    if (!raw) return null;
+    const parsed: LocalStorageIpnsCache = JSON.parse(raw);
+    if (parsed.url && Date.now() - parsed.timestamp < LOCALSTORAGE_CACHE_TTL_MS) {
+      return parsed.url;
+    }
+  } catch {
+    // localStorage unavailable or corrupted — ignore
+  }
+  return null;
+}
+
+/** Write IPNS URL to localStorage cache. */
+function writeLocalStorageCache(url: string): void {
+  try {
+    if (typeof window === 'undefined') return;
+    const entry: LocalStorageIpnsCache = { url, timestamp: Date.now() };
+    localStorage.setItem(LOCALSTORAGE_CACHE_KEY, JSON.stringify(entry));
+  } catch {
+    // localStorage unavailable — ignore
+  }
+}
 
 interface IndexJson {
   query_table_cid?: string;
@@ -39,9 +73,11 @@ function isSafeDataUrl(url: string): boolean {
 
 /**
  * Resolve IPNS key to fetch index.json, extract query_table_url or query_table_cid.
- * Caches the result for 5 minutes.
+ * Caches the result in memory (5 min) and localStorage (30 min).
+ * Returns { url, fromCache } where fromCache=true means the URL came from localStorage
+ * (and therefore HEAD validation can be skipped).
  */
-async function resolveParquetUrl(): Promise<string | null> {
+async function resolveParquetUrl(): Promise<{ url: string; fromCache: boolean } | null> {
   const ipnsKey = process.env.NEXT_PUBLIC_IPNS_QUERY_TABLE;
   if (!ipnsKey || ipnsKey === 'placeholder') {
     console.warn('[duckdb] NEXT_PUBLIC_IPNS_QUERY_TABLE not set or placeholder');
@@ -49,9 +85,22 @@ async function resolveParquetUrl(): Promise<string | null> {
   }
 
   const now = Date.now();
+
+  // Layer 1: in-memory cache (fastest)
   if (resolvedParquetUrl && now - ipnsResolveTimestamp < IPNS_CACHE_TTL_MS) {
-    return resolvedParquetUrl;
+    return { url: resolvedParquetUrl, fromCache: true };
   }
+
+  // Layer 2: localStorage cache (survives page refresh, 30 min TTL)
+  const cachedUrl = readLocalStorageCache();
+  if (cachedUrl && isSafeDataUrl(cachedUrl)) {
+    resolvedParquetUrl = cachedUrl;
+    ipnsResolveTimestamp = now;
+    console.info('[duckdb] Parquet URL from localStorage cache:', cachedUrl);
+    return { url: cachedUrl, fromCache: true };
+  }
+
+  // Layer 3: network resolution (primary API, then IPNS gateway fallback)
 
   // Primary: fetch from tRPC API which resolves IPNS server-side (fast, no browser gateway timeout)
   try {
@@ -68,8 +117,9 @@ async function resolveParquetUrl(): Promise<string | null> {
         if (url && isSafeDataUrl(url)) {
           resolvedParquetUrl = url;
           ipnsResolveTimestamp = now;
+          writeLocalStorageCache(url);
           console.info('[duckdb] Parquet URL from API:', url);
-          return url;
+          return { url, fromCache: false };
         }
         if (url) {
           console.warn('[duckdb] API returned unsafe Parquet URL, ignoring:', url);
@@ -104,8 +154,9 @@ async function resolveParquetUrl(): Promise<string | null> {
       if (url && isSafeDataUrl(url)) {
         resolvedParquetUrl = url;
         ipnsResolveTimestamp = now;
+        writeLocalStorageCache(url);
         console.info('[duckdb] Parquet URL from IPNS fallback:', url);
-        return url;
+        return { url, fromCache: false };
       }
       if (url) {
         console.warn('[duckdb] IPNS returned unsafe Parquet URL, ignoring:', url);
@@ -117,7 +168,7 @@ async function resolveParquetUrl(): Promise<string | null> {
     console.warn('[duckdb] IPNS gateway fallback also failed:', err instanceof Error ? err.message : err);
   }
 
-  return resolvedParquetUrl ?? null;
+  return resolvedParquetUrl ? { url: resolvedParquetUrl, fromCache: true } : null;
 }
 
 async function initDuckDB(): Promise<duckdbWasm.AsyncDuckDBConnection> {
@@ -194,18 +245,34 @@ async function validateParquetUrl(url: string): Promise<string | null> {
 
 /**
  * Ensure DuckDB is initialized and the Parquet URL is resolved.
+ * Runs DuckDB WASM init and IPNS resolution in parallel for faster startup.
  * Does NOT create a VIEW — queries use read_parquet() directly with LIMIT
  * so DuckDB-WASM can leverage HTTP range requests (lazy loading).
  */
 export async function ensureReady(): Promise<{ conn: duckdbWasm.AsyncDuckDBConnection; url: string } | null> {
-  const url = await resolveParquetUrl();
-  if (!url) {
+  // Run DuckDB init and IPNS resolution in parallel — they are independent
+  const [resolved, conn] = await Promise.all([
+    resolveParquetUrl(),
+    getConnection(),
+  ]);
+
+  if (!resolved) {
     console.warn('[duckdb] Could not resolve query table URL from IPNS — returning empty data');
     return null;
   }
 
-  // Validate the URL won't redirect to a non-IPFS domain (e.g. CloudFront)
-  const validatedUrl = await validateParquetUrl(url);
+  const { url, fromCache } = resolved;
+
+  // Skip HEAD validation if the URL came from a trusted cache (localStorage or memory).
+  // Only validate freshly-resolved URLs to avoid the ~800ms HEAD request on every load.
+  let validatedUrl: string | null;
+  if (fromCache) {
+    console.info('[duckdb] Skipping HEAD validation for cached URL');
+    validatedUrl = url;
+  } else {
+    validatedUrl = await validateParquetUrl(url);
+  }
+
   if (!validatedUrl) {
     console.error('[duckdb] Parquet URL failed validation — returning empty data to prevent redirect');
     // Clear the cached URL so next attempt re-resolves from IPNS
@@ -214,7 +281,6 @@ export async function ensureReady(): Promise<{ conn: duckdbWasm.AsyncDuckDBConne
     return null;
   }
 
-  const conn = await getConnection();
   return { conn, url: validatedUrl };
 }
 
