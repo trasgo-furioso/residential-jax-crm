@@ -34,6 +34,32 @@ const inputStyle: React.CSSProperties = {
   boxSizing: 'border-box',
 };
 
+const selectStyle: React.CSSProperties = {
+  ...inputStyle,
+  appearance: 'auto' as const,
+};
+
+const toggleTrack: React.CSSProperties = {
+  position: 'relative',
+  width: 40,
+  height: 20,
+  borderRadius: 10,
+  cursor: 'pointer',
+  transition: 'background-color 0.2s',
+  flexShrink: 0,
+};
+
+const toggleThumb: React.CSSProperties = {
+  position: 'absolute',
+  top: 2,
+  width: 16,
+  height: 16,
+  borderRadius: '50%',
+  backgroundColor: '#ffffff',
+  transition: 'left 0.2s',
+  boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+};
+
 const btnPrimary: React.CSSProperties = {
   padding: '6px 14px',
   fontSize: 12,
@@ -239,72 +265,116 @@ export default function SearchCriteria({ onApply, onClear }: SearchCriteriaProps
 
           {/* Filter inputs */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
+            {/* Row 1: Ownership Tenure | Roof Age | Water Proximity */}
             <div>
-              <label style={labelStyle}>Ownership Tenure (min yrs)</label>
-              <input
-                type="number"
-                style={inputStyle}
+              <label style={labelStyle}>Min Ownership (yrs)</label>
+              <select
+                style={selectStyle}
                 value={ownershipTenure}
                 onChange={(e) => setOwnershipTenure(e.target.value)}
-                placeholder="e.g. 10"
-                min={0}
-              />
+              >
+                <option value="">Any</option>
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="15">15</option>
+                <option value="20">20</option>
+                <option value="25">25</option>
+                <option value="30">30</option>
+                <option value="40">40</option>
+                <option value="50">50</option>
+              </select>
             </div>
             <div>
-              <label style={labelStyle}>Roof Age (min yrs)</label>
-              <input
-                type="number"
-                style={inputStyle}
+              <label style={labelStyle}>Min Roof Age (yrs)</label>
+              <select
+                style={selectStyle}
                 value={roofAge}
                 onChange={(e) => setRoofAge(e.target.value)}
-                placeholder="e.g. 15"
-                min={0}
-              />
+              >
+                <option value="">Any</option>
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="15">15</option>
+                <option value="20">20</option>
+                <option value="25">25</option>
+                <option value="30">30</option>
+                <option value="40">40</option>
+                <option value="50">50</option>
+              </select>
             </div>
             <div>
-              <label style={labelStyle}>Assessed Value Min ($)</label>
-              <input
-                type="number"
-                style={inputStyle}
-                value={assessedValueMin}
-                onChange={(e) => setAssessedValueMin(e.target.value)}
-                placeholder="e.g. 100000"
-                min={0}
-              />
-            </div>
-            <div>
-              <label style={labelStyle}>Assessed Value Max ($)</label>
-              <input
-                type="number"
-                style={inputStyle}
-                value={assessedValueMax}
-                onChange={(e) => setAssessedValueMax(e.target.value)}
-                placeholder="e.g. 500000"
-                min={0}
-              />
-            </div>
-            <div>
-              <label style={labelStyle}>Water Proximity (max ft)</label>
-              <input
-                type="number"
-                style={inputStyle}
+              <label style={labelStyle}>Max Water Proximity (ft)</label>
+              <select
+                style={selectStyle}
                 value={waterProximity}
                 onChange={(e) => setWaterProximity(e.target.value)}
-                placeholder="e.g. 1000"
-                min={0}
-              />
+              >
+                <option value="">Any</option>
+                <option value="500">500</option>
+                <option value="1000">1,000</option>
+                <option value="2000">2,000</option>
+                <option value="3000">3,000</option>
+                <option value="5000">5,000</option>
+                <option value="10000">10,000</option>
+              </select>
+            </div>
+
+            {/* Row 2: Assessed Value Min—Max | Regional Owner toggle */}
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={labelStyle}>Assessed Value ($)</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input
+                  type="number"
+                  style={{ ...inputStyle, flex: 1 }}
+                  value={assessedValueMin}
+                  onChange={(e) => setAssessedValueMin(e.target.value)}
+                  placeholder="Min $"
+                  min={0}
+                />
+                <span style={{ fontSize: 13, color: '#9ca3af', flexShrink: 0 }}>&mdash;</span>
+                <input
+                  type="number"
+                  style={{ ...inputStyle, flex: 1 }}
+                  value={assessedValueMax}
+                  onChange={(e) => setAssessedValueMax(e.target.value)}
+                  placeholder="Max $"
+                  min={0}
+                />
+              </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 4 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={isRegionalOwner}
-                  onChange={(e) => setIsRegionalOwner(e.target.checked)}
-                />
-                Regional Owner
-              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div
+                  role="switch"
+                  aria-checked={isRegionalOwner}
+                  tabIndex={0}
+                  style={{
+                    ...toggleTrack,
+                    backgroundColor: isRegionalOwner ? '#3b82f6' : '#d1d5db',
+                  }}
+                  onClick={() => setIsRegionalOwner((v) => !v)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setIsRegionalOwner((v) => !v);
+                    }
+                  }}
+                >
+                  <div
+                    style={{
+                      ...toggleThumb,
+                      left: isRegionalOwner ? 22 : 2,
+                    }}
+                  />
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Regional Owner
+                </span>
+              </div>
             </div>
-            <div style={{ gridColumn: 'span 2' }}>
+
+            {/* Row 3: Zip Codes (full width) */}
+            <div style={{ gridColumn: 'span 3' }}>
               <label style={labelStyle}>Zip Codes (comma-separated)</label>
               <input
                 type="text"
