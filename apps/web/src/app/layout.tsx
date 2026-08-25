@@ -156,7 +156,7 @@ export default function RootLayout({
                 alignItems: 'center',
                 padding: '8px 24px',
                 backgroundColor: '#fff',
-                borderBottom: '1px solid #e2e2e2',
+                borderBottom: '1px solid #e5e7eb',
                 flexShrink: 0,
               }}
             >

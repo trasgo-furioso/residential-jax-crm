@@ -81,7 +81,7 @@ export default function SearchCriteria({ onApply, onClear }: SearchCriteriaProps
   const [savedSearches, setSavedSearches] = useState<SavedCriteriaRecord[]>([]);
   const [saveName, setSaveName] = useState('');
   const [showSaveInput, setShowSaveInput] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   // Load saved searches on mount
   useEffect(() => {
@@ -181,22 +181,22 @@ export default function SearchCriteria({ onApply, onClear }: SearchCriteriaProps
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: '10px 16px',
-          borderBottom: '1px solid #e5e7eb',
+          padding: '8px 16px',
+          borderBottom: collapsed ? 'none' : '1px solid #e5e7eb',
           cursor: 'pointer',
         }}
         onClick={() => setCollapsed((c) => !c)}
       >
-        <span style={{ fontSize: 14, fontWeight: 600, color: '#1f2937' }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: '#1f2937' }}>
           Search Criteria
         </span>
-        <span style={{ fontSize: 12, color: '#9ca3af' }}>
-          {collapsed ? '+' : '-'}
+        <span style={{ fontSize: 12, color: '#9ca3af', fontWeight: 600, transition: 'transform 0.15s', display: 'inline-block', transform: collapsed ? 'rotate(0deg)' : 'rotate(90deg)' }}>
+          &#9654;
         </span>
       </div>
 
       {!collapsed && (
-        <div style={{ padding: '12px 16px' }}>
+        <div style={{ padding: '10px 16px' }}>
           {/* Saved searches dropdown */}
           {savedSearches.length > 0 && (
             <div style={{ marginBottom: 12 }}>
@@ -238,7 +238,7 @@ export default function SearchCriteria({ onApply, onClear }: SearchCriteriaProps
           )}
 
           {/* Filter inputs */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
             <div>
               <label style={labelStyle}>Ownership Tenure (min yrs)</label>
               <input
@@ -304,17 +304,16 @@ export default function SearchCriteria({ onApply, onClear }: SearchCriteriaProps
                 Regional Owner
               </label>
             </div>
-          </div>
-
-          <div style={{ marginBottom: 12 }}>
-            <label style={labelStyle}>Zip Codes (comma-separated)</label>
-            <input
-              type="text"
-              style={inputStyle}
-              value={zipCodes}
-              onChange={(e) => setZipCodes(e.target.value)}
-              placeholder="e.g. 32202, 32204, 32210"
-            />
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={labelStyle}>Zip Codes (comma-separated)</label>
+              <input
+                type="text"
+                style={inputStyle}
+                value={zipCodes}
+                onChange={(e) => setZipCodes(e.target.value)}
+                placeholder="e.g. 32202, 32204, 32210"
+              />
+            </div>
           </div>
 
           {/* Action buttons */}

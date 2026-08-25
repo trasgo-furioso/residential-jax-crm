@@ -410,7 +410,7 @@ export default function Dashboard() {
         {showMap && (
           <div
             style={{
-              flex: viewMode === 'map' ? 1 : 0.6,
+              flex: viewMode === 'map' ? 1 : 3,
               borderRadius: 8,
               overflow: 'hidden',
               boxShadow: '0 1px 4px rgba(0, 0, 0, 0.08)',
@@ -435,7 +435,7 @@ export default function Dashboard() {
         {(showList || selectedProperty) && (
           <div
             style={{
-              flex: viewMode === 'list' ? 1 : 0.4,
+              flex: viewMode === 'list' ? 1 : 2,
               display: 'flex',
               flexDirection: 'column',
               gap: 12,

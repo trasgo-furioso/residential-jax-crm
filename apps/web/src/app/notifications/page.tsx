@@ -69,10 +69,10 @@ export default function NotificationsPage() {
         }}
       >
         <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#1a1a2e' }}>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#1f2937' }}>
             Notifications
           </h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: '#888' }}>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: '#6b7280' }}>
             {totalCount} total &middot; {unreadCount} unread
           </p>
         </div>
@@ -84,7 +84,7 @@ export default function NotificationsPage() {
             padding: '8px 16px',
             fontSize: 13,
             fontWeight: 500,
-            background: unreadCount === 0 ? '#e0e0e0' : '#3182ce',
+            background: unreadCount === 0 ? '#e0e0e0' : '#3b82f6',
             color: unreadCount === 0 ? '#999' : '#fff',
             border: 'none',
             borderRadius: 6,
@@ -107,7 +107,7 @@ export default function NotificationsPage() {
       >
         {/* Criteria filter */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <label style={{ fontSize: 12, color: '#666', fontWeight: 500 }}>
+          <label style={{ fontSize: 12, color: '#6b7280', fontWeight: 500 }}>
             Criteria Set
           </label>
           <select
@@ -116,7 +116,7 @@ export default function NotificationsPage() {
             style={{
               padding: '6px 10px',
               fontSize: 13,
-              border: '1px solid #ddd',
+              border: '1px solid #d1d5db',
               borderRadius: 4,
               minWidth: 180,
             }}
@@ -132,7 +132,7 @@ export default function NotificationsPage() {
 
         {/* Date range start */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <label style={{ fontSize: 12, color: '#666', fontWeight: 500 }}>
+          <label style={{ fontSize: 12, color: '#6b7280', fontWeight: 500 }}>
             From
           </label>
           <input
@@ -142,7 +142,7 @@ export default function NotificationsPage() {
             style={{
               padding: '6px 10px',
               fontSize: 13,
-              border: '1px solid #ddd',
+              border: '1px solid #d1d5db',
               borderRadius: 4,
             }}
           />
@@ -150,7 +150,7 @@ export default function NotificationsPage() {
 
         {/* Date range end */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <label style={{ fontSize: 12, color: '#666', fontWeight: 500 }}>
+          <label style={{ fontSize: 12, color: '#6b7280', fontWeight: 500 }}>
             To
           </label>
           <input
@@ -160,7 +160,7 @@ export default function NotificationsPage() {
             style={{
               padding: '6px 10px',
               fontSize: 13,
-              border: '1px solid #ddd',
+              border: '1px solid #d1d5db',
               borderRadius: 4,
             }}
           />
@@ -178,10 +178,10 @@ export default function NotificationsPage() {
               padding: '6px 12px',
               fontSize: 12,
               background: 'none',
-              border: '1px solid #ddd',
+              border: '1px solid #d1d5db',
               borderRadius: 4,
               cursor: 'pointer',
-              color: '#666',
+              color: '#6b7280',
               alignSelf: 'flex-end',
             }}
           >
@@ -194,7 +194,7 @@ export default function NotificationsPage() {
       <div
         style={{
           background: '#fff',
-          border: '1px solid #e2e2e2',
+          border: '1px solid #e5e7eb',
           borderRadius: 8,
           overflow: 'hidden',
         }}
