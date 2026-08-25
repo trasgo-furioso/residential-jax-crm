@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import type { GeoJSONFeatureCollection, CriteriaFilters } from '@/lib/duckdb';
+import type { ViewportBounds } from '@/components/map/PropertyMap';
 import type { MapRef } from 'react-map-gl/maplibre';
 
 const PropertyMap = dynamic(() => import('@/components/map/PropertyMap'), { ssr: false });
@@ -149,6 +150,7 @@ export default function Dashboard() {
   const [loadFailed, setLoadFailed] = useState(false);
   const [lastLoadTime, setLastLoadTime] = useState<number | null>(null);
   const mapRefHolder = useRef<MapRef | null>(null);
+  const [mapMoved, setMapMoved] = useState(false);
   const handleMapRefCallback = useCallback((instance: MapRef | null) => {
     mapRefHolder.current = instance;
   }, []);
@@ -272,6 +274,45 @@ export default function Dashboard() {
       setLoadFailed(true);
     }
   }, []);
+
+  const handleMapMoved = useCallback(() => {
+    setMapMoved(true);
+  }, []);
+
+  const handleSearchArea = useCallback(async (bounds: ViewportBounds) => {
+    setSearching(true);
+    setMapMoved(false);
+    try {
+      const { queryPropertiesByBounds } = await import('@/lib/duckdb');
+      let data = await queryPropertiesByBounds(bounds);
+
+      // If criteria filters are active, apply scoring to the bounded results
+      if (activeFilters) {
+        const { evaluateMatch } = await import('@/lib/duckdb');
+        const scored: GeoJSONFeatureCollection = {
+          ...data,
+          features: data.features.map((f) => {
+            const match = evaluateMatch(f.properties, activeFilters);
+            return {
+              ...f,
+              properties: { ...f.properties, match_score: match.percentage, match_breakdown: match.breakdown },
+            };
+          }),
+        };
+        scored.features.sort(
+          (a, b) => (b.properties.match_score as number) - (a.properties.match_score as number),
+        );
+        data = scored;
+      }
+
+      setGeojson(data);
+      setProperties(data.features.map(featureToRow));
+    } catch (err) {
+      console.error('Search area failed:', err);
+    } finally {
+      setSearching(false);
+    }
+  }, [activeFilters]);
 
   const showMap = viewMode === 'split' || viewMode === 'map';
   const showList = viewMode === 'split' || viewMode === 'list';
@@ -424,6 +465,9 @@ export default function Dashboard() {
               selectedParcelId={selectedParcelId}
               matchScores={activeFilters != null}
               mapRefCallback={handleMapRefCallback}
+              onSearchArea={handleSearchArea}
+              showSearchButton={mapMoved}
+              onMapMoved={handleMapMoved}
             />
             <DrawControl
               mapRef={mapRefHolder}

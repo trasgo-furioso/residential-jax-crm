@@ -232,6 +232,36 @@ export async function queryPropertyByParcelId(
   return rows.length > 0 ? rows[0] : null;
 }
 
+/**
+ * Query properties within geographic bounds (viewport) and return as GeoJSON.
+ */
+export async function queryPropertiesByBounds(
+  bounds: { north: number; south: number; east: number; west: number },
+  limit = 5000,
+): Promise<GeoJSONFeatureCollection> {
+  const ready = await ensureReady();
+  if (!ready) return { type: 'FeatureCollection', features: [] };
+  const { conn, url } = ready;
+
+  const sql = `SELECT *, street AS address_street FROM read_parquet('${url}') WHERE lat BETWEEN ${bounds.south} AND ${bounds.north} AND lng BETWEEN ${bounds.west} AND ${bounds.east} LIMIT ${limit}`;
+  const result = await conn.query(sql);
+  const rows = result.toArray().map((row: Record<string, unknown>) => ({ ...row }));
+
+  const features: GeoJSONFeature[] = rows.map((row) => {
+    const { lat, lng, ...rest } = row as Record<string, unknown> & { lat: number; lng: number };
+    return {
+      type: 'Feature' as const,
+      geometry: {
+        type: 'Point' as const,
+        coordinates: [lng, lat],
+      },
+      properties: rest,
+    };
+  });
+
+  return { type: 'FeatureCollection', features };
+}
+
 // ── Criteria-based search (client-side DuckDB) ────────────────────────────
 
 export interface CriteriaFilters {

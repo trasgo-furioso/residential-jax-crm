@@ -1,10 +1,17 @@
 'use client';
 
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useState } from 'react';
 import Map, { Source, Layer, NavigationControl } from 'react-map-gl/maplibre';
 import type { MapLayerMouseEvent, MapRef } from 'react-map-gl/maplibre';
 import type { GeoJSONFeatureCollection } from '@/lib/duckdb';
 import 'maplibre-gl/dist/maplibre-gl.css';
+
+export interface ViewportBounds {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+}
 
 const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 
@@ -20,6 +27,9 @@ interface PropertyMapProps {
   selectedParcelId?: string | null;
   matchScores?: boolean;
   mapRefCallback?: (ref: MapRef | null) => void;
+  onSearchArea?: (bounds: ViewportBounds) => void;
+  showSearchButton?: boolean;
+  onMapMoved?: () => void;
 }
 
 export default function PropertyMap({
@@ -28,8 +38,12 @@ export default function PropertyMap({
   selectedParcelId,
   matchScores,
   mapRefCallback,
+  onSearchArea,
+  showSearchButton,
+  onMapMoved,
 }: PropertyMapProps) {
   const mapRef = useRef<MapRef>(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   const handleMapRef = useCallback(
     (instance: MapRef | null) => {
@@ -73,6 +87,27 @@ export default function PropertyMap({
     [onPropertySelect],
   );
 
+  const handleMoveEnd = useCallback(() => {
+    // Skip the initial map load — only react to user-initiated moves
+    if (isInitialLoad) {
+      setIsInitialLoad(false);
+      return;
+    }
+    onMapMoved?.();
+  }, [isInitialLoad, onMapMoved]);
+
+  const handleSearchArea = useCallback(() => {
+    const map = mapRef.current?.getMap();
+    if (!map || !onSearchArea) return;
+    const bounds = map.getBounds();
+    onSearchArea({
+      north: bounds.getNorth(),
+      south: bounds.getSouth(),
+      east: bounds.getEast(),
+      west: bounds.getWest(),
+    });
+  }, [onSearchArea]);
+
   // Color expression: when match scores are available, color by score
   const circleColor = matchScores
     ? [
@@ -94,6 +129,33 @@ export default function PropertyMap({
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+      {showSearchButton && (
+        <button
+          onClick={handleSearchArea}
+          style={{
+            position: 'absolute',
+            top: 12,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 10,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 16px',
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#3b82f6',
+            backgroundColor: '#ffffff',
+            border: 'none',
+            borderRadius: 20,
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+            cursor: 'pointer',
+            transition: 'opacity 0.2s',
+          }}
+        >
+          <span role="img" aria-label="search">&#x1F50D;</span> Search this area
+        </button>
+      )}
       <Map
         ref={handleMapRef}
         initialViewState={JACKSONVILLE_CENTER}
@@ -101,6 +163,7 @@ export default function PropertyMap({
         mapStyle={MAP_STYLE}
         interactiveLayerIds={['clusters', 'unclustered-point']}
         onClick={handleClick}
+        onMoveEnd={handleMoveEnd}
       >
         <NavigationControl position="top-right" />
 
