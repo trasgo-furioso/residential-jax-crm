@@ -237,7 +237,7 @@ export async function queryPropertyByParcelId(
  */
 export async function queryPropertiesByBounds(
   bounds: { north: number; south: number; east: number; west: number },
-  limit = 5000,
+  limit = 1000,
 ): Promise<GeoJSONFeatureCollection> {
   const ready = await ensureReady();
   if (!ready) return { type: 'FeatureCollection', features: [] };
