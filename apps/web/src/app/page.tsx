@@ -10,7 +10,7 @@ const PropertyMap = dynamic(() => import('@/components/map/PropertyMap'), { ssr:
 const PropertyList = dynamic(() => import('@/components/properties/PropertyList'), { ssr: false });
 const PropertyDetail = dynamic(() => import('@/components/properties/PropertyDetail'), { ssr: false });
 const SearchCriteria = dynamic(() => import('@/components/properties/SearchCriteria'), { ssr: false });
-const DrawControl = dynamic(() => import('@/components/map/DrawControl'), { ssr: false });
+// DrawControl removed — viewport search replaces draw tools
 const StalenessWarning = dynamic(() => import('@/components/map/StalenessWarning'), { ssr: false });
 
 type ViewMode = 'split' | 'map' | 'list';
@@ -149,7 +149,7 @@ export default function Dashboard() {
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeFilters, setActiveFilters] = useState<CriteriaFilters | null>(null);
-  const [drawnGeometry, setDrawnGeometry] = useState<GeoJSON.Geometry | null>(null);
+  // drawnGeometry removed — DrawControl no longer used
   const [loadFailed, setLoadFailed] = useState(false);
   const [lastLoadTime, setLastLoadTime] = useState<number | null>(null);
   const mapRefHolder = useRef<MapRef | null>(null);
@@ -254,34 +254,14 @@ export default function Dashboard() {
       const { queryPropertiesByCriteria } = await import('@/lib/duckdb');
       const data = await queryPropertiesByCriteria(filters);
 
-      // If geographic bounds drawn, filter by bounding box
-      let filtered = data;
-      if (drawnGeometry && drawnGeometry.type === 'Polygon') {
-        const coords = drawnGeometry.coordinates[0];
-        const lngs = coords.map((c) => c[0]);
-        const lats = coords.map((c) => c[1]);
-        const minLng = Math.min(...lngs);
-        const maxLng = Math.max(...lngs);
-        const minLat = Math.min(...lats);
-        const maxLat = Math.max(...lats);
-
-        filtered = {
-          ...data,
-          features: data.features.filter((f) => {
-            const [lng, lat] = f.geometry.coordinates;
-            return lng >= minLng && lng <= maxLng && lat >= minLat && lat <= maxLat;
-          }),
-        };
-      }
-
-      setGeojson(filtered);
-      setProperties(filtered.features.map(featureToRow));
+      setGeojson(data);
+      setProperties(data.features.map(featureToRow));
     } catch (err) {
       console.error('Criteria search failed:', err);
     } finally {
       setSearching(false);
     }
-  }, [allGeojson, drawnGeometry]);
+  }, [allGeojson]);
 
   const handleClearCriteria = useCallback(() => {
     setActiveFilters(null);
@@ -289,9 +269,7 @@ export default function Dashboard() {
     setProperties(allGeojson.features.map(featureToRow));
   }, [allGeojson]);
 
-  const handleGeometryChange = useCallback((geometry: GeoJSON.Geometry | null) => {
-    setDrawnGeometry(geometry);
-  }, []);
+  // handleGeometryChange removed — DrawControl no longer used
 
   const handleRetryLoad = useCallback(async () => {
     try {
@@ -426,9 +404,7 @@ export default function Dashboard() {
               Filtered: {properties.length.toLocaleString()} results
             </span>
           )}
-          {searching && (
-            <span style={{ fontSize: 12, color: '#6b7280' }}>Searching...</span>
-          )}
+{/* Searching indicator removed — map spinner replaces it */}
         </div>
         <div style={{ display: 'flex' }}>
           <ToggleButton
@@ -480,48 +456,12 @@ export default function Dashboard() {
               matchScores={activeFilters != null}
               mapRefCallback={handleMapRefCallback}
               onSearchArea={handleSearchArea}
-              showSearchButton={mapMoved}
+              showSearchButton={mapMoved && !searching}
+              loading={loading || searching}
               onMapMoved={handleMapMoved}
               onMapLoad={handleMapLoad}
             />
-            {loading && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 12,
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  zIndex: 10,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '8px 16px',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: '#3b82f6',
-                  backgroundColor: '#ffffff',
-                  borderRadius: 20,
-                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-                }}
-              >
-                <div
-                  style={{
-                    width: 16,
-                    height: 16,
-                    border: '2px solid #e5e7eb',
-                    borderTopColor: '#3b82f6',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite',
-                  }}
-                />
-                Loading properties in view...
-                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-              </div>
-            )}
-            <DrawControl
-              mapRef={mapRefHolder}
-              onGeometryChange={handleGeometryChange}
-            />
+{/* DrawControl removed — viewport search replaces draw tools */}
           </div>
         )}
 

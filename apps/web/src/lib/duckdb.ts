@@ -197,7 +197,7 @@ export async function queryProperties(): Promise<GeoJSONFeatureCollection> {
   const { conn, url } = ready;
   // Query read_parquet() directly — DuckDB-WASM uses HTTP range requests to
   // fetch only the Parquet footer + needed row groups, NOT the entire file.
-  const result = await conn.query(`SELECT *, street AS address_street FROM read_parquet('${url}') WHERE lat IS NOT NULL AND lng IS NOT NULL LIMIT 5000`);
+  const result = await conn.query(`SELECT *, street AS address_street FROM read_parquet('${url}') WHERE lat IS NOT NULL AND lng IS NOT NULL LIMIT 1000`);
   const rows = result.toArray().map((row: Record<string, unknown>) => ({ ...row }));
 
   const features: GeoJSONFeature[] = rows.map((row) => {

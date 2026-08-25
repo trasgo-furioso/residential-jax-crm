@@ -144,7 +144,7 @@ export async function queryProperties(): Promise<PropertyRow[]> {
   const ready = await ensureInitialized();
   if (!ready) return [];
   // Limit results to prevent memory exhaustion at 400k+ records
-  return runQuery<PropertyRow>('SELECT * FROM properties LIMIT 5000');
+  return runQuery<PropertyRow>('SELECT * FROM properties LIMIT 1000');
 }
 
 export interface PropertyFilters {

@@ -18,7 +18,7 @@ const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json
 const JACKSONVILLE_CENTER = {
   longitude: -81.6557,
   latitude: 30.3322,
-  zoom: 11,
+  zoom: 13,
 };
 
 interface PropertyMapProps {
@@ -29,6 +29,7 @@ interface PropertyMapProps {
   mapRefCallback?: (ref: MapRef | null) => void;
   onSearchArea?: (bounds: ViewportBounds) => void;
   showSearchButton?: boolean;
+  loading?: boolean;
   onMapMoved?: () => void;
   onMapLoad?: (bounds: ViewportBounds) => void;
 }
@@ -41,6 +42,7 @@ export default function PropertyMap({
   mapRefCallback,
   onSearchArea,
   showSearchButton,
+  loading,
   onMapMoved,
   onMapLoad,
 }: PropertyMapProps) {
@@ -143,7 +145,40 @@ export default function PropertyMap({
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-      {showSearchButton && (
+      {loading ? (
+        <div
+          style={{
+            position: 'absolute',
+            top: 12,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 10,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 16px',
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#3b82f6',
+            backgroundColor: '#ffffff',
+            borderRadius: 20,
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+          }}
+        >
+          <div
+            style={{
+              width: 16,
+              height: 16,
+              border: '2px solid #e5e7eb',
+              borderTopColor: '#3b82f6',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+            }}
+          />
+          Loading...
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      ) : showSearchButton ? (
         <button
           onClick={handleSearchArea}
           style={{
@@ -169,7 +204,7 @@ export default function PropertyMap({
         >
           <span role="img" aria-label="search">&#x1F50D;</span> Search this area
         </button>
-      )}
+      ) : null}
       <Map
         ref={handleMapRef}
         initialViewState={JACKSONVILLE_CENTER}
