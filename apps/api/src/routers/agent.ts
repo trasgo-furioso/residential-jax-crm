@@ -5,45 +5,64 @@ import { db } from '@/lib/db/index.js';
 import { opportunities } from '@/lib/db/schema.js';
 import { eq } from 'drizzle-orm';
 
-// ── Pipeline MCP client (replaces local DuckDB) ──────────────────────────────
-const PIPELINE_MCP_URL =
-  process.env.PIPELINE_MCP_URL ??
-  'https://k9f346jdz9.execute-api.us-east-2.amazonaws.com/v1/mcp';
+// ── Pipeline API client (calls EC2 agent via CloudFront) ─────────────────────
+const PIPELINE_API_URL =
+  process.env.PIPELINE_API_URL ??
+  'https://d5sfa8vgu8mcx.cloudfront.net';
 
-interface McpToolResult {
-  content: Array<{ type: string; text: string }>;
-  isError?: boolean;
-}
-
-async function callPipelineMcp(
-  toolName: string,
-  args: Record<string, unknown>,
-): Promise<McpToolResult> {
-  const response = await fetch(PIPELINE_MCP_URL, {
+/**
+ * Call the pipeline's agent chat API which runs DuckDB over IPFS Parquet
+ * on EC2 (399k properties, 6GB heap). Returns the tool result rows directly.
+ */
+async function callPipelineQuery(sql: string): Promise<PropertyRow[]> {
+  const response = await fetch(`${PIPELINE_API_URL}/api/agent/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      jsonrpc: '2.0',
-      method: 'tools/call',
-      params: { name: toolName, arguments: args },
-      id: 1,
+      messages: [{ role: 'user', content: sql }],
     }),
   });
 
   if (!response.ok) {
     throw new Error(
-      `Pipeline MCP call failed: ${response.status} ${response.statusText}`,
+      `Pipeline API call failed: ${response.status} ${response.statusText}`,
     );
   }
 
-  const body = await response.json();
-  if (body.error) {
-    throw new Error(
-      `Pipeline MCP error: ${body.error.message ?? JSON.stringify(body.error)}`,
-    );
+  // The pipeline agent returns streaming SSE lines. Parse the tool result.
+  const text = await response.text();
+  const lines = text.split('\n');
+
+  // Look for the tool result line (prefix "a:" contains query results)
+  for (const line of lines) {
+    if (line.startsWith('a:')) {
+      const payload = JSON.parse(line.slice(2));
+      const results = payload.result?.results ?? [];
+      // Map pipeline fields to PropertyRow shape
+      return results.map((r: Record<string, unknown>) => ({
+        parcel_id: r.parcel_id ?? '',
+        address_street: r.full_address ?? r.address ?? '',
+        address_city: 'Jacksonville',
+        address_zip: '',
+        assessed_value: r.assessed_value ?? 0,
+        market_value: r.market_value ?? 0,
+        current_owner_name: r.current_owner_name ?? r.owner ?? '',
+        lat: r.lat ?? 0,
+        lng: r.lng ?? 0,
+        year_built: r.year_built ?? null,
+        sqft: r.sqft ?? null,
+        roof_age_years: r.roof_age_years ?? null,
+        ownership_tenure_years: r.ownership_tenure_years ?? null,
+        is_regional_owner: r.is_regional_owner ?? null,
+        water_proximity_ft: r.water_proximity_ft ?? null,
+        transit_distance_mi: r.transit_distance_mi ?? null,
+        provenance_sources: r.provenance_sources ?? 'pipeline',
+        provenance_last_run: r.provenance_last_run ?? '',
+      })) as PropertyRow[];
+    }
   }
 
-  return body.result as McpToolResult;
+  return [];
 }
 
 interface PropertyRow {
@@ -94,7 +113,7 @@ async function resolveModel(): Promise<LanguageModel> {
 }
 
 const SYSTEM_PROMPT = `You are a helpful property acquisition assistant for a residential CRM in Jacksonville, FL.
-You have access to the Oracle Property Intelligence pipeline's property database (via MCP) with the following columns:
+You have access to the Oracle Property Intelligence pipeline's property database (399,999 Duval County properties) with the following columns:
 
 - parcel_id (TEXT) — unique parcel identifier
 - address_street, address_city, address_zip (TEXT)
@@ -160,8 +179,9 @@ If properties are returned, highlight key attributes (address, assessed value, r
 Always mention the provenance sources so the user knows where the data comes from.`;
 
 /**
- * Query properties via the pipeline MCP server (JSON-RPC over HTTP).
- * Sanitizes input to block DML keywords.
+ * Query properties via the pipeline's agent API (CloudFront → EC2).
+ * Sends a natural-language-style SQL prompt that the pipeline agent converts
+ * to a DuckDB query over IPFS Parquet (399k properties).
  */
 async function executePropertyQuery(
   sqlWhere?: string,
@@ -176,23 +196,12 @@ async function executePropertyQuery(
     throw new Error('Disallowed SQL keyword in WHERE clause');
   }
 
-  const sql = clause
-    ? `SELECT * FROM properties WHERE ${clause} LIMIT ${effectiveLimit}`
-    : `SELECT * FROM properties LIMIT ${effectiveLimit}`;
+  // Build a SQL-style prompt for the pipeline agent
+  const prompt = clause
+    ? `Run this exact SQL: SELECT * FROM properties WHERE ${clause} LIMIT ${effectiveLimit}`
+    : `Run this exact SQL: SELECT * FROM properties LIMIT ${effectiveLimit}`;
 
-  const mcpResult = await callPipelineMcp('queryProperties', {
-    county: 'duval',
-    sql,
-  });
-
-  if (mcpResult.isError) {
-    const errText = mcpResult.content[0]?.text ?? 'Unknown MCP error';
-    throw new Error(`Property query failed: ${errText}`);
-  }
-
-  const responseText = mcpResult.content[0]?.text ?? '{"rows":[]}';
-  const { rows } = JSON.parse(responseText) as { rows: PropertyRow[] };
-  return rows;
+  return callPipelineQuery(prompt);
 }
 
 export const agentRouter = router({
