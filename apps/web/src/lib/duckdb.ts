@@ -20,7 +20,7 @@ export interface GeoJSONFeatureCollection {
 
 export interface CriteriaFilters {
   ownership_tenure_min_years?: number;
-  roof_age_min_years?: number;
+  roof_age_max_years?: number;
   zip_codes?: string[];
   assessed_value_min?: number;
   assessed_value_max?: number;
@@ -56,10 +56,10 @@ export function evaluateMatch(
     });
   }
 
-  if (filters.roof_age_min_years != null) {
+  if (filters.roof_age_max_years != null) {
     breakdown.push({
-      criterion: 'roof_age_min_years',
-      met: ((property.roof_age_years as number) ?? 0) >= filters.roof_age_min_years,
+      criterion: 'roof_age_max_years',
+      met: ((property.roof_age_years as number) ?? Infinity) <= filters.roof_age_max_years,
     });
   }
 
@@ -183,7 +183,7 @@ export async function queryPropertiesByCriteria(
   filters: CriteriaFilters,
 ): Promise<GeoJSONFeatureCollection> {
   const params = new URLSearchParams();
-  if (filters.roof_age_min_years != null) params.set('roof_age_min', filters.roof_age_min_years.toString());
+  if (filters.roof_age_max_years != null) params.set('roof_age_max', filters.roof_age_max_years.toString());
   if (filters.ownership_tenure_min_years != null) params.set('ownership_min', filters.ownership_tenure_min_years.toString());
   if (filters.assessed_value_min != null) params.set('value_min', filters.assessed_value_min.toString());
   if (filters.assessed_value_max != null) params.set('value_max', filters.assessed_value_max.toString());

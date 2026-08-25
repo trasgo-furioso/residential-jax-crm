@@ -121,7 +121,7 @@ export default function SearchCriteria({ onApply, onClear }: SearchCriteriaProps
   const buildFilters = useCallback((): CriteriaFilters => {
     const filters: CriteriaFilters = {};
     if (ownershipTenure) filters.ownership_tenure_min_years = Number(ownershipTenure);
-    if (roofAge) filters.roof_age_min_years = Number(roofAge);
+    if (roofAge) filters.roof_age_max_years = Number(roofAge);
     if (zipCodes.trim()) {
       filters.zip_codes = zipCodes
         .split(',')
@@ -152,7 +152,7 @@ export default function SearchCriteria({ onApply, onClear }: SearchCriteriaProps
 
   const loadFilters = useCallback((filters: CriteriaFilters) => {
     setOwnershipTenure(filters.ownership_tenure_min_years?.toString() ?? '');
-    setRoofAge(filters.roof_age_min_years?.toString() ?? '');
+    setRoofAge(filters.roof_age_max_years?.toString() ?? '');
     setZipCodes(filters.zip_codes?.join(', ') ?? '');
     setAssessedValueMin(filters.assessed_value_min?.toString() ?? '');
     setAssessedValueMax(filters.assessed_value_max?.toString() ?? '');
@@ -309,21 +309,28 @@ export default function SearchCriteria({ onApply, onClear }: SearchCriteriaProps
               </select>
             </div>
             <div>
-              <label style={labelStyle}>Min Roof Age (yrs)</label>
+              <label style={labelStyle}>Max Roof Age (yrs)</label>
               <select
                 style={selectStyle}
                 value={roofAge}
                 onChange={(e) => setRoofAge(e.target.value)}
               >
                 <option value="">Any</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
                 <option value="5">5</option>
+                <option value="6">6</option>
+                <option value="7">7</option>
+                <option value="8">8</option>
+                <option value="9">9</option>
                 <option value="10">10</option>
+                <option value="11">11</option>
+                <option value="12">12</option>
+                <option value="13">13</option>
+                <option value="14">14</option>
                 <option value="15">15</option>
-                <option value="20">20</option>
-                <option value="25">25</option>
-                <option value="30">30</option>
-                <option value="40">40</option>
-                <option value="50">50</option>
               </select>
             </div>
 
