@@ -64,6 +64,9 @@ export class ResidentialCrmStack extends Stack {
         BEDROCK_MODEL_ID: process.env.BEDROCK_MODEL_ID ?? '',
         OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? '',
         ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
+        PIPELINE_MCP_URL:
+          process.env.PIPELINE_MCP_URL ??
+          'https://k9f346jdz9.execute-api.us-east-2.amazonaws.com/v1/mcp',
         PAGERDUTY_ROUTING_KEY_SECRET_ARN:
           process.env.PAGERDUTY_ROUTING_KEY_SECRET_ARN ?? '',
       },

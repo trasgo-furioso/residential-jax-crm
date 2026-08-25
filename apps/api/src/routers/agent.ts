@@ -1,14 +1,72 @@
 import { z } from 'zod';
 import { type LanguageModel, generateText, tool } from 'ai';
 import { publicProcedure, router } from './trpc.js';
-import {
-  queryProperties,
-  queryPropertiesWithWhere,
-  type PropertyRow,
-} from '@/services/duckdb.js';
 import { db } from '@/lib/db/index.js';
 import { opportunities } from '@/lib/db/schema.js';
 import { eq } from 'drizzle-orm';
+
+// ── Pipeline MCP client (replaces local DuckDB) ──────────────────────────────
+const PIPELINE_MCP_URL =
+  process.env.PIPELINE_MCP_URL ??
+  'https://k9f346jdz9.execute-api.us-east-2.amazonaws.com/v1/mcp';
+
+interface McpToolResult {
+  content: Array<{ type: string; text: string }>;
+  isError?: boolean;
+}
+
+async function callPipelineMcp(
+  toolName: string,
+  args: Record<string, unknown>,
+): Promise<McpToolResult> {
+  const response = await fetch(PIPELINE_MCP_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'tools/call',
+      params: { name: toolName, arguments: args },
+      id: 1,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Pipeline MCP call failed: ${response.status} ${response.statusText}`,
+    );
+  }
+
+  const body = await response.json();
+  if (body.error) {
+    throw new Error(
+      `Pipeline MCP error: ${body.error.message ?? JSON.stringify(body.error)}`,
+    );
+  }
+
+  return body.result as McpToolResult;
+}
+
+interface PropertyRow {
+  parcel_id: string;
+  address_street: string;
+  address_city: string;
+  address_zip: string;
+  assessed_value: number;
+  market_value: number;
+  current_owner_name: string;
+  lat: number;
+  lng: number;
+  year_built: number | null;
+  sqft: number | null;
+  roof_age_years: number | null;
+  ownership_tenure_years: number | null;
+  is_regional_owner: boolean | null;
+  water_proximity_ft: number | null;
+  transit_distance_mi: number | null;
+  provenance_sources: string;
+  provenance_last_run: string;
+  provenance_timestamps?: string;
+}
 
 /**
  * Resolve the AI model provider at runtime.
@@ -36,7 +94,7 @@ async function resolveModel(): Promise<LanguageModel> {
 }
 
 const SYSTEM_PROMPT = `You are a helpful property acquisition assistant for a residential CRM in Jacksonville, FL.
-You have access to a DuckDB database of properties with the following columns:
+You have access to the Oracle Property Intelligence pipeline's property database (via MCP) with the following columns:
 
 - parcel_id (TEXT) — unique parcel identifier
 - address_street, address_city, address_zip (TEXT)
@@ -102,28 +160,39 @@ If properties are returned, highlight key attributes (address, assessed value, r
 Always mention the provenance sources so the user knows where the data comes from.`;
 
 /**
- * Apply a WHERE clause from the LLM against the DuckDB properties view.
+ * Query properties via the pipeline MCP server (JSON-RPC over HTTP).
  * Sanitizes input to block DML keywords.
  */
 async function executePropertyQuery(
   sqlWhere?: string,
   limit?: number,
 ): Promise<PropertyRow[]> {
-  const effectiveLimit = limit ?? 20;
-
-  if (!sqlWhere) {
-    const all = await queryProperties();
-    return all.slice(0, effectiveLimit);
-  }
+  const effectiveLimit = Math.min(limit ?? 20, 200);
 
   // Sanitize: strip semicolons, block DML keywords
-  const clause = sqlWhere.replace(/;/g, '').trim();
+  const clause = sqlWhere ? sqlWhere.replace(/;/g, '').trim() : '';
   const forbidden = /\b(DROP|DELETE|INSERT|UPDATE|ALTER|CREATE|TRUNCATE)\b/i;
-  if (forbidden.test(clause)) {
+  if (clause && forbidden.test(clause)) {
     throw new Error('Disallowed SQL keyword in WHERE clause');
   }
 
-  return queryPropertiesWithWhere(clause, effectiveLimit);
+  const sql = clause
+    ? `SELECT * FROM properties WHERE ${clause} LIMIT ${effectiveLimit}`
+    : `SELECT * FROM properties LIMIT ${effectiveLimit}`;
+
+  const mcpResult = await callPipelineMcp('queryProperties', {
+    county: 'duval',
+    sql,
+  });
+
+  if (mcpResult.isError) {
+    const errText = mcpResult.content[0]?.text ?? 'Unknown MCP error';
+    throw new Error(`Property query failed: ${errText}`);
+  }
+
+  const responseText = mcpResult.content[0]?.text ?? '{"rows":[]}';
+  const { rows } = JSON.parse(responseText) as { rows: PropertyRow[] };
+  return rows;
 }
 
 export const agentRouter = router({
