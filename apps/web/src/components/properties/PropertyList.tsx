@@ -45,6 +45,7 @@ interface PropertyListProps {
   onPropertySelect?: (parcelId: string) => void;
   selectedParcelId?: string | null;
   showMatchScore?: boolean;
+  viewMode?: 'split' | 'list';
 }
 
 type SortField =
@@ -96,6 +97,25 @@ const tdStyle: React.CSSProperties = {
   maxWidth: 200,
 };
 
+const SORT_OPTIONS: { label: string; value: SortField }[] = [
+  { label: 'Parcel ID', value: 'parcel_id' },
+  { label: 'Address', value: 'address' },
+  { label: 'Assessed Value', value: 'assessed_value' },
+  { label: 'Tenure (yr)', value: 'ownership_tenure_years' },
+  { label: 'Roof Age (yr)', value: 'roof_age_years' },
+];
+
+const chipStyle: React.CSSProperties = {
+  display: 'inline-block',
+  padding: '2px 8px',
+  fontSize: 11,
+  fontWeight: 600,
+  borderRadius: 10,
+  backgroundColor: '#f3f4f6',
+  color: '#374151',
+  whiteSpace: 'nowrap',
+};
+
 function MatchBadge({ score }: { score: number }) {
   const bg = score >= 80 ? '#dcfce7' : score >= 50 ? '#fef9c3' : '#fee2e2';
   const color = score >= 80 ? '#166534' : score >= 50 ? '#854d0e' : '#dc2626';
@@ -123,6 +143,7 @@ export default function PropertyList({
   onPropertySelect,
   selectedParcelId,
   showMatchScore,
+  viewMode = 'list',
 }: PropertyListProps) {
   const [sortField, setSortField] = useState<SortField>('parcel_id');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -192,6 +213,44 @@ export default function PropertyList({
     return sortDir === 'asc' ? ' ^' : ' v';
   }
 
+  const isSplit = viewMode === 'split';
+
+  const paginationControls = totalPages > 1 ? (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+      <button
+        onClick={() => setPage((p) => Math.max(0, p - 1))}
+        disabled={page === 0}
+        style={{
+          padding: '4px 8px',
+          border: '1px solid #d1d5db',
+          borderRadius: 4,
+          background: page === 0 ? '#f9fafb' : '#ffffff',
+          cursor: page === 0 ? 'default' : 'pointer',
+          color: page === 0 ? '#9ca3af' : '#374151',
+        }}
+      >
+        Prev
+      </button>
+      <span style={{ color: '#6b7280' }}>
+        {page + 1} / {totalPages}
+      </span>
+      <button
+        onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+        disabled={page >= totalPages - 1}
+        style={{
+          padding: '4px 8px',
+          border: '1px solid #d1d5db',
+          borderRadius: 4,
+          background: page >= totalPages - 1 ? '#f9fafb' : '#ffffff',
+          cursor: page >= totalPages - 1 ? 'default' : 'pointer',
+          color: page >= totalPages - 1 ? '#9ca3af' : '#374151',
+        }}
+      >
+        Next
+      </button>
+    </div>
+  ) : null;
+
   return (
     <div
       style={{
@@ -210,12 +269,14 @@ export default function PropertyList({
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: '12px 16px',
+          padding: isSplit ? '8px 12px' : '12px 16px',
           borderBottom: '1px solid #e5e7eb',
+          flexWrap: isSplit ? 'wrap' : 'nowrap',
+          gap: isSplit ? 6 : 0,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: '#1f2937' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <span style={{ fontSize: isSplit ? 12 : 14, fontWeight: 600, color: '#1f2937' }}>
             Properties ({properties.length.toLocaleString()}{properties.length >= 5000 ? ' of ~380k total' : ' total'})
           </span>
           <button
@@ -235,42 +296,61 @@ export default function PropertyList({
             {exporting ? 'Exporting...' : 'Export CSV'}
           </button>
         </div>
-        {totalPages > 1 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-            <button
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              disabled={page === 0}
-              style={{
-                padding: '4px 8px',
-                border: '1px solid #d1d5db',
-                borderRadius: 4,
-                background: page === 0 ? '#f9fafb' : '#ffffff',
-                cursor: page === 0 ? 'default' : 'pointer',
-                color: page === 0 ? '#9ca3af' : '#374151',
-              }}
-            >
-              Prev
-            </button>
-            <span style={{ color: '#6b7280' }}>
-              {page + 1} / {totalPages}
-            </span>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-              disabled={page >= totalPages - 1}
-              style={{
-                padding: '4px 8px',
-                border: '1px solid #d1d5db',
-                borderRadius: 4,
-                background: page >= totalPages - 1 ? '#f9fafb' : '#ffffff',
-                cursor: page >= totalPages - 1 ? 'default' : 'pointer',
-                color: page >= totalPages - 1 ? '#9ca3af' : '#374151',
-              }}
-            >
-              Next
-            </button>
-          </div>
-        )}
+        {paginationControls}
       </div>
+
+      {/* Sort dropdown for split mode */}
+      {isSplit && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '6px 12px',
+            borderBottom: '1px solid #f3f4f6',
+            fontSize: 11,
+            color: '#6b7280',
+          }}
+        >
+          <span style={{ fontWeight: 600 }}>Sort:</span>
+          <select
+            value={sortField}
+            onChange={(e) => {
+              setSortField(e.target.value as SortField);
+              setPage(0);
+            }}
+            style={{
+              fontSize: 11,
+              padding: '2px 4px',
+              border: '1px solid #d1d5db',
+              borderRadius: 4,
+              color: '#374151',
+              backgroundColor: '#ffffff',
+              cursor: 'pointer',
+            }}
+          >
+            {SORT_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+            {showMatchScore && <option value="match_score">Match Score</option>}
+          </select>
+          <button
+            onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+            style={{
+              fontSize: 11,
+              padding: '2px 8px',
+              border: '1px solid #d1d5db',
+              borderRadius: 4,
+              backgroundColor: '#ffffff',
+              color: '#374151',
+              cursor: 'pointer',
+              fontWeight: 600,
+            }}
+          >
+            {sortDir === 'asc' ? 'Asc' : 'Desc'}
+          </button>
+        </div>
+      )}
 
       {/* Limit notice */}
       {properties.length >= 5000 && (
@@ -287,63 +367,22 @@ export default function PropertyList({
         </div>
       )}
 
-      {/* Table */}
+      {/* Content: Cards (split) or Table (list) */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        <table
-          style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-          }}
-        >
-          <thead>
-            <tr>
-              <th style={thStyle} onClick={() => handleSort('parcel_id')}>
-                Parcel ID{sortIndicator('parcel_id')}
-              </th>
-              <th style={thStyle} onClick={() => handleSort('address')}>
-                Address{sortIndicator('address')}
-              </th>
-              <th style={thStyle} onClick={() => handleSort('current_owner_name')}>
-                Owner{sortIndicator('current_owner_name')}
-              </th>
-              <th
-                style={{ ...thStyle, textAlign: 'right' }}
-                onClick={() => handleSort('assessed_value')}
-              >
-                Assessed Value{sortIndicator('assessed_value')}
-              </th>
-              <th
-                style={{ ...thStyle, textAlign: 'right' }}
-                onClick={() => handleSort('ownership_tenure_years')}
-              >
-                Tenure (yr){sortIndicator('ownership_tenure_years')}
-              </th>
-              <th
-                style={{ ...thStyle, textAlign: 'right' }}
-                onClick={() => handleSort('roof_age_years')}
-              >
-                Roof Age (yr){sortIndicator('roof_age_years')}
-              </th>
-              {showMatchScore && (
-                <th
-                  style={{ ...thStyle, textAlign: 'center' }}
-                  onClick={() => handleSort('match_score')}
-                >
-                  Match{sortIndicator('match_score')}
-                </th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
+        {isSplit ? (
+          /* Card view for split mode */
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
             {paged.map((p) => {
               const isSelected = p.parcel_id === selectedParcelId;
               return (
-                <tr
+                <div
                   key={p.parcel_id}
                   onClick={() => onPropertySelect?.(p.parcel_id)}
                   style={{
+                    padding: '10px 12px',
                     cursor: 'pointer',
                     backgroundColor: isSelected ? '#eff6ff' : 'transparent',
+                    borderBottom: '1px solid #f3f4f6',
                     transition: 'background-color 0.1s',
                   }}
                   onMouseEnter={(e) => {
@@ -357,47 +396,183 @@ export default function PropertyList({
                     }
                   }}
                 >
-                  <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 12 }}>
-                    {p.parcel_id}
-                  </td>
-                  <td style={tdStyle}>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: '#1f2937',
+                      lineHeight: 1.3,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
                     {p.address_street}, {p.address_city} {p.address_zip}
-                  </td>
-                  <td style={tdStyle}>{p.current_owner_name ?? '—'}</td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {p.assessed_value != null ? formatCurrency(p.assessed_value) : '—'}
-                  </td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {p.ownership_tenure_years != null ? p.ownership_tenure_years : '—'}
-                  </td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {p.roof_age_years != null ? p.roof_age_years : '—'}
-                  </td>
-                  {showMatchScore && (
-                    <td style={{ ...tdStyle, textAlign: 'center' }}>
-                      {p.match_score != null ? <MatchBadge score={p.match_score} /> : '-'}
-                    </td>
-                  )}
-                </tr>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: '#6b7280',
+                      marginTop: 2,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {p.current_owner_name ?? '—'}
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: 4,
+                      marginTop: 6,
+                    }}
+                  >
+                    <span style={chipStyle}>
+                      {p.assessed_value != null ? formatCurrency(p.assessed_value) : '—'}
+                    </span>
+                    <span style={chipStyle}>
+                      {p.ownership_tenure_years != null ? `${p.ownership_tenure_years}yr tenure` : '—'}
+                    </span>
+                    <span style={chipStyle}>
+                      {p.roof_age_years != null ? `${p.roof_age_years}yr roof` : '—'}
+                    </span>
+                    <span style={{ ...chipStyle, fontFamily: 'monospace', fontSize: 10 }}>
+                      {p.parcel_id}
+                    </span>
+                    {showMatchScore && p.match_score != null && (
+                      <MatchBadge score={p.match_score} />
+                    )}
+                  </div>
+                </div>
               );
             })}
             {paged.length === 0 && (
-              <tr>
-                <td
-                  colSpan={showMatchScore ? 7 : 6}
-                  style={{
-                    ...tdStyle,
-                    textAlign: 'center',
-                    color: '#9ca3af',
-                    padding: 32,
-                  }}
-                >
-                  No properties found
-                </td>
-              </tr>
+              <div
+                style={{
+                  textAlign: 'center',
+                  color: '#9ca3af',
+                  padding: 32,
+                  fontSize: 13,
+                }}
+              >
+                No properties found
+              </div>
             )}
-          </tbody>
-        </table>
+          </div>
+        ) : (
+          /* Table view for list mode */
+          <table
+            style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+            }}
+          >
+            <thead>
+              <tr>
+                <th style={thStyle} onClick={() => handleSort('parcel_id')}>
+                  Parcel ID{sortIndicator('parcel_id')}
+                </th>
+                <th style={thStyle} onClick={() => handleSort('address')}>
+                  Address{sortIndicator('address')}
+                </th>
+                <th style={thStyle} onClick={() => handleSort('current_owner_name')}>
+                  Owner{sortIndicator('current_owner_name')}
+                </th>
+                <th
+                  style={{ ...thStyle, textAlign: 'right' }}
+                  onClick={() => handleSort('assessed_value')}
+                >
+                  Assessed Value{sortIndicator('assessed_value')}
+                </th>
+                <th
+                  style={{ ...thStyle, textAlign: 'right' }}
+                  onClick={() => handleSort('ownership_tenure_years')}
+                >
+                  Tenure (yr){sortIndicator('ownership_tenure_years')}
+                </th>
+                <th
+                  style={{ ...thStyle, textAlign: 'right' }}
+                  onClick={() => handleSort('roof_age_years')}
+                >
+                  Roof Age (yr){sortIndicator('roof_age_years')}
+                </th>
+                {showMatchScore && (
+                  <th
+                    style={{ ...thStyle, textAlign: 'center' }}
+                    onClick={() => handleSort('match_score')}
+                  >
+                    Match{sortIndicator('match_score')}
+                  </th>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {paged.map((p) => {
+                const isSelected = p.parcel_id === selectedParcelId;
+                return (
+                  <tr
+                    key={p.parcel_id}
+                    onClick={() => onPropertySelect?.(p.parcel_id)}
+                    style={{
+                      cursor: 'pointer',
+                      backgroundColor: isSelected ? '#eff6ff' : 'transparent',
+                      transition: 'background-color 0.1s',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) {
+                        (e.currentTarget as HTMLElement).style.backgroundColor = '#f9fafb';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) {
+                        (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                      }
+                    }}
+                  >
+                    <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 12 }}>
+                      {p.parcel_id}
+                    </td>
+                    <td style={tdStyle}>
+                      {p.address_street}, {p.address_city} {p.address_zip}
+                    </td>
+                    <td style={tdStyle}>{p.current_owner_name ?? '—'}</td>
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>
+                      {p.assessed_value != null ? formatCurrency(p.assessed_value) : '—'}
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>
+                      {p.ownership_tenure_years != null ? p.ownership_tenure_years : '—'}
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>
+                      {p.roof_age_years != null ? p.roof_age_years : '—'}
+                    </td>
+                    {showMatchScore && (
+                      <td style={{ ...tdStyle, textAlign: 'center' }}>
+                        {p.match_score != null ? <MatchBadge score={p.match_score} /> : '-'}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+              {paged.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={showMatchScore ? 7 : 6}
+                    style={{
+                      ...tdStyle,
+                      textAlign: 'center',
+                      color: '#9ca3af',
+                      padding: 32,
+                    }}
+                  >
+                    No properties found
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

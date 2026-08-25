@@ -411,6 +411,7 @@ export default function Dashboard() {
           <div
             style={{
               flex: viewMode === 'map' ? 1 : 3,
+              minWidth: viewMode === 'split' ? '55%' : undefined,
               borderRadius: 8,
               overflow: 'hidden',
               boxShadow: '0 1px 4px rgba(0, 0, 0, 0.08)',
@@ -436,10 +437,12 @@ export default function Dashboard() {
           <div
             style={{
               flex: viewMode === 'list' ? 1 : 2,
+              maxWidth: viewMode === 'split' ? '45%' : undefined,
               display: 'flex',
               flexDirection: 'column',
               gap: 12,
               minHeight: 0,
+              overflow: 'auto',
             }}
           >
             {/* Search Criteria panel */}
@@ -485,6 +488,7 @@ export default function Dashboard() {
                   onPropertySelect={handlePropertySelect}
                   selectedParcelId={selectedParcelId}
                   showMatchScore={activeFilters != null}
+                  viewMode={viewMode === 'split' ? 'split' : 'list'}
                 />
               </div>
             )}
