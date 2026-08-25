@@ -193,7 +193,7 @@ export default function Dashboard() {
     return properties.find((p) => p.parcel_id === selectedParcelId) ?? null;
   }, [selectedParcelId, properties]);
 
-  // Apply criteria search via client-side DuckDB
+  // Apply criteria search via pipeline API (scoped to current viewport)
   const handleApplyCriteria = useCallback(async (filters: CriteriaFilters) => {
     // Check if any filter is actually set
     const hasFilters = Object.values(filters).some((v) => {
@@ -213,8 +213,16 @@ export default function Dashboard() {
     setSearching(true);
     setActiveFilters(filters);
     try {
+      // Get current viewport bounds so results appear on the visible map
+      const map = mapRefHolder.current?.getMap();
+      let bounds: { north: number; south: number; east: number; west: number } | undefined;
+      if (map) {
+        const b = map.getBounds();
+        bounds = { north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() };
+      }
+
       const { queryPropertiesByCriteria } = await import('@/lib/duckdb');
-      const data = await queryPropertiesByCriteria(filters);
+      const data = await queryPropertiesByCriteria(filters, bounds);
 
       setGeojson(data);
       setProperties(data.features.map(featureToRow));

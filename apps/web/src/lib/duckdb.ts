@@ -181,6 +181,7 @@ export async function queryPropertyByParcelId(parcelId: string): Promise<Record<
  */
 export async function queryPropertiesByCriteria(
   filters: CriteriaFilters,
+  bounds?: { north: number; south: number; east: number; west: number },
 ): Promise<GeoJSONFeatureCollection> {
   const params = new URLSearchParams();
   if (filters.roof_age_max_years != null) params.set('roof_age_max', filters.roof_age_max_years.toString());
@@ -190,6 +191,12 @@ export async function queryPropertiesByCriteria(
   if (filters.zip_codes?.length) params.set('zip', filters.zip_codes.join(','));
   if (filters.is_regional_owner) params.set('regional_owner', 'true');
   if (filters.water_proximity_max_ft != null) params.set('water_proximity', 'true');
+  if (bounds) {
+    params.set('lat_min', bounds.south.toString());
+    params.set('lat_max', bounds.north.toString());
+    params.set('lng_min', bounds.west.toString());
+    params.set('lng_max', bounds.east.toString());
+  }
   params.set('limit', '1000');
 
   const res = await fetch(`${PIPELINE_API}/api/properties/filter?${params}`);
