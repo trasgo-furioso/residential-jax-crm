@@ -142,7 +142,10 @@ export default function Dashboard() {
   const [properties, setProperties] = useState<PropertyRow[]>([]);
   const [selectedParcelId, setSelectedParcelId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('split');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [duckdbReady, setDuckdbReady] = useState(false);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const pendingBoundsRef = useRef<ViewportBounds | null>(null);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeFilters, setActiveFilters] = useState<CriteriaFilters | null>(null);
@@ -155,39 +158,69 @@ export default function Dashboard() {
     mapRefHolder.current = instance;
   }, []);
 
-  // Initial load
+  // Shared helper: query by bounds for initial load
+  const loadInitialBounds = useCallback(async (bounds: ViewportBounds) => {
+    try {
+      setLoading(true);
+      setError(null);
+      setLoadFailed(false);
+      const { queryPropertiesByBounds } = await import('@/lib/duckdb');
+      const data = await queryPropertiesByBounds(bounds);
+      setAllGeojson(data);
+      setGeojson(data);
+      setProperties(data.features.map(featureToRow));
+      setLastLoadTime(Date.now());
+      setLoadFailed(false);
+      setInitialLoadDone(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load properties');
+      setLoadFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Pre-initialize DuckDB + resolve Parquet URL in background (no query yet)
   useEffect(() => {
     let cancelled = false;
 
-    async function load() {
+    async function preInit() {
       try {
-        setLoading(true);
-        setError(null);
-        setLoadFailed(false);
-        const { queryProperties } = await import('@/lib/duckdb');
-        const data = await queryProperties();
+        const { ensureReady } = await import('@/lib/duckdb');
+        await ensureReady();
         if (cancelled) return;
-
-        setAllGeojson(data);
-        setGeojson(data);
-        setProperties(data.features.map(featureToRow));
-        setLastLoadTime(Date.now());
-        setLoadFailed(false);
+        setDuckdbReady(true);
+        // If map already loaded and queued bounds, fire the initial query now
+        if (pendingBoundsRef.current) {
+          const bounds = pendingBoundsRef.current;
+          pendingBoundsRef.current = null;
+          await loadInitialBounds(bounds);
+        }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load properties');
-          setLoadFailed(true);
+          console.warn('DuckDB pre-init failed, will retry on first query:', err);
         }
-      } finally {
-        if (!cancelled) setLoading(false);
       }
     }
 
-    load();
+    preInit();
     return () => {
       cancelled = true;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Called when MapLibre fires onLoad with initial viewport bounds
+  const handleMapLoad = useCallback(async (bounds: ViewportBounds) => {
+    if (initialLoadDone) return; // already loaded
+    if (duckdbReady) {
+      await loadInitialBounds(bounds);
+    } else {
+      // DuckDB not ready yet — stash bounds so pre-init can pick them up
+      pendingBoundsRef.current = bounds;
+      setLoading(true); // show inline loading indicator
+    }
+  }, [duckdbReady, initialLoadDone, loadInitialBounds]);
 
   const handlePropertySelect = useCallback((parcelId: string) => {
     setSelectedParcelId((prev) => (prev === parcelId ? null : parcelId));
@@ -262,11 +295,22 @@ export default function Dashboard() {
 
   const handleRetryLoad = useCallback(async () => {
     try {
-      const { queryProperties } = await import('@/lib/duckdb');
-      const data = await queryProperties();
-      setAllGeojson(data);
-      setGeojson(data);
-      setProperties(data.features.map(featureToRow));
+      const map = mapRefHolder.current?.getMap();
+      if (map) {
+        const b = map.getBounds();
+        const bounds = { north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() };
+        const { queryPropertiesByBounds } = await import('@/lib/duckdb');
+        const data = await queryPropertiesByBounds(bounds);
+        setAllGeojson(data);
+        setGeojson(data);
+        setProperties(data.features.map(featureToRow));
+      } else {
+        const { queryProperties } = await import('@/lib/duckdb');
+        const data = await queryProperties();
+        setAllGeojson(data);
+        setGeojson(data);
+        setProperties(data.features.map(featureToRow));
+      }
       setLastLoadTime(Date.now());
       setLoadFailed(false);
       setError(null);
@@ -317,37 +361,7 @@ export default function Dashboard() {
   const showMap = viewMode === 'split' || viewMode === 'map';
   const showList = viewMode === 'split' || viewMode === 'list';
 
-  if (loading) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: 'calc(100vh - 48px)',
-          gap: 16,
-        }}
-      >
-        <div
-          style={{
-            width: 40,
-            height: 40,
-            border: '4px solid #e5e7eb',
-            borderTopColor: '#3b82f6',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-          }}
-        />
-        <div style={{ fontSize: 14, color: '#6b7280' }}>
-          Initializing DuckDB and loading property data...
-        </div>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
-  }
-
-  if (error) {
+  if (error && !initialLoadDone) {
     return (
       <div
         style={{
@@ -468,7 +482,42 @@ export default function Dashboard() {
               onSearchArea={handleSearchArea}
               showSearchButton={mapMoved}
               onMapMoved={handleMapMoved}
+              onMapLoad={handleMapLoad}
             />
+            {loading && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 12,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 10,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 16px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#3b82f6',
+                  backgroundColor: '#ffffff',
+                  borderRadius: 20,
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                }}
+              >
+                <div
+                  style={{
+                    width: 16,
+                    height: 16,
+                    border: '2px solid #e5e7eb',
+                    borderTopColor: '#3b82f6',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite',
+                  }}
+                />
+                Loading properties in view...
+                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+              </div>
+            )}
             <DrawControl
               mapRef={mapRefHolder}
               onGeometryChange={handleGeometryChange}

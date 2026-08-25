@@ -30,6 +30,7 @@ interface PropertyMapProps {
   onSearchArea?: (bounds: ViewportBounds) => void;
   showSearchButton?: boolean;
   onMapMoved?: () => void;
+  onMapLoad?: (bounds: ViewportBounds) => void;
 }
 
 export default function PropertyMap({
@@ -41,6 +42,7 @@ export default function PropertyMap({
   onSearchArea,
   showSearchButton,
   onMapMoved,
+  onMapLoad,
 }: PropertyMapProps) {
   const mapRef = useRef<MapRef>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -86,6 +88,18 @@ export default function PropertyMap({
     },
     [onPropertySelect],
   );
+
+  const handleLoad = useCallback(() => {
+    const map = mapRef.current?.getMap();
+    if (!map || !onMapLoad) return;
+    const bounds = map.getBounds();
+    onMapLoad({
+      north: bounds.getNorth(),
+      south: bounds.getSouth(),
+      east: bounds.getEast(),
+      west: bounds.getWest(),
+    });
+  }, [onMapLoad]);
 
   const handleMoveEnd = useCallback(() => {
     // Skip the initial map load — only react to user-initiated moves
@@ -163,6 +177,7 @@ export default function PropertyMap({
         mapStyle={MAP_STYLE}
         interactiveLayerIds={['clusters', 'unclustered-point']}
         onClick={handleClick}
+        onLoad={handleLoad}
         onMoveEnd={handleMoveEnd}
       >
         <NavigationControl position="top-right" />

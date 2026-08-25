@@ -157,7 +157,7 @@ async function initDuckDB(): Promise<duckdbWasm.AsyncDuckDBConnection> {
  * Does NOT create a VIEW — queries use read_parquet() directly with LIMIT
  * so DuckDB-WASM can leverage HTTP range requests (lazy loading).
  */
-async function ensureReady(): Promise<{ conn: duckdbWasm.AsyncDuckDBConnection; url: string } | null> {
+export async function ensureReady(): Promise<{ conn: duckdbWasm.AsyncDuckDBConnection; url: string } | null> {
   const url = await resolveParquetUrl();
   if (!url) {
     console.warn('[duckdb] Could not resolve query table URL from IPNS — returning empty data');
