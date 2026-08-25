@@ -264,8 +264,32 @@ export default function SearchCriteria({ onApply, onClear }: SearchCriteriaProps
           )}
 
           {/* Filter inputs */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
-            {/* Row 1: Ownership Tenure | Roof Age | Water Proximity */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+            {/* Row 1: Assessed Value Min—Max (full width) */}
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={labelStyle}>Assessed Value ($)</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input
+                  type="number"
+                  style={{ ...inputStyle, flex: 1 }}
+                  value={assessedValueMin}
+                  onChange={(e) => setAssessedValueMin(e.target.value)}
+                  placeholder="Min $"
+                  min={0}
+                />
+                <span style={{ fontSize: 13, color: '#9ca3af', flexShrink: 0 }}>&mdash;</span>
+                <input
+                  type="number"
+                  style={{ ...inputStyle, flex: 1 }}
+                  value={assessedValueMax}
+                  onChange={(e) => setAssessedValueMax(e.target.value)}
+                  placeholder="Max $"
+                  min={0}
+                />
+              </div>
+            </div>
+
+            {/* Row 2: Min Ownership | Min Roof Age */}
             <div>
               <label style={labelStyle}>Min Ownership (yrs)</label>
               <select
@@ -302,6 +326,8 @@ export default function SearchCriteria({ onApply, onClear }: SearchCriteriaProps
                 <option value="50">50</option>
               </select>
             </div>
+
+            {/* Row 3: Max Water Proximity | Regional Owner toggle */}
             <div>
               <label style={labelStyle}>Max Water Proximity (ft)</label>
               <select
@@ -317,30 +343,6 @@ export default function SearchCriteria({ onApply, onClear }: SearchCriteriaProps
                 <option value="5000">5,000</option>
                 <option value="10000">10,000</option>
               </select>
-            </div>
-
-            {/* Row 2: Assessed Value Min—Max | Regional Owner toggle */}
-            <div style={{ gridColumn: 'span 2' }}>
-              <label style={labelStyle}>Assessed Value ($)</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input
-                  type="number"
-                  style={{ ...inputStyle, flex: 1 }}
-                  value={assessedValueMin}
-                  onChange={(e) => setAssessedValueMin(e.target.value)}
-                  placeholder="Min $"
-                  min={0}
-                />
-                <span style={{ fontSize: 13, color: '#9ca3af', flexShrink: 0 }}>&mdash;</span>
-                <input
-                  type="number"
-                  style={{ ...inputStyle, flex: 1 }}
-                  value={assessedValueMax}
-                  onChange={(e) => setAssessedValueMax(e.target.value)}
-                  placeholder="Max $"
-                  min={0}
-                />
-              </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 4 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -373,8 +375,8 @@ export default function SearchCriteria({ onApply, onClear }: SearchCriteriaProps
               </div>
             </div>
 
-            {/* Row 3: Zip Codes (full width) */}
-            <div style={{ gridColumn: 'span 3' }}>
+            {/* Row 4: Zip Codes (full width) */}
+            <div style={{ gridColumn: 'span 2' }}>
               <label style={labelStyle}>Zip Codes (comma-separated)</label>
               <input
                 type="text"
