@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import type { GeoJSONFeatureCollection, CriteriaFilters } from '@/lib/duckdb';
+import type { GeoJSONFeatureCollection, CriteriaFilters } from '@/lib/property-api';
 import type { ViewportBounds } from '@/components/map/PropertyMap';
 import type { MapRef } from 'react-map-gl/maplibre';
 
@@ -162,7 +162,7 @@ export default function Dashboard() {
       setLoading(true);
       setError(null);
       setLoadFailed(false);
-      const { queryPropertiesByBounds } = await import('@/lib/duckdb');
+      const { queryPropertiesByBounds } = await import('@/lib/property-api');
       const data = await queryPropertiesByBounds(bounds);
       setAllGeojson(data);
       setGeojson(data);
@@ -221,7 +221,7 @@ export default function Dashboard() {
         bounds = { north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() };
       }
 
-      const { queryPropertiesByCriteria } = await import('@/lib/duckdb');
+      const { queryPropertiesByCriteria } = await import('@/lib/property-api');
       const data = await queryPropertiesByCriteria(filters, bounds);
 
       setGeojson(data);
@@ -247,13 +247,13 @@ export default function Dashboard() {
       if (map) {
         const b = map.getBounds();
         const bounds = { north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() };
-        const { queryPropertiesByBounds } = await import('@/lib/duckdb');
+        const { queryPropertiesByBounds } = await import('@/lib/property-api');
         const data = await queryPropertiesByBounds(bounds);
         setAllGeojson(data);
         setGeojson(data);
         setProperties(data.features.map(featureToRow));
       } else {
-        const { queryProperties } = await import('@/lib/duckdb');
+        const { queryProperties } = await import('@/lib/property-api');
         const data = await queryProperties();
         setAllGeojson(data);
         setGeojson(data);
@@ -275,12 +275,12 @@ export default function Dashboard() {
     setSearching(true);
     setMapMoved(false);
     try {
-      const { queryPropertiesByBounds } = await import('@/lib/duckdb');
+      const { queryPropertiesByBounds } = await import('@/lib/property-api');
       let data = await queryPropertiesByBounds(bounds);
 
       // If criteria filters are active, apply scoring to the bounded results
       if (activeFilters) {
-        const { evaluateMatch } = await import('@/lib/duckdb');
+        const { evaluateMatch } = await import('@/lib/property-api');
         const scored: GeoJSONFeatureCollection = {
           ...data,
           features: data.features.map((f) => {

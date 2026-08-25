@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { CriteriaFilters } from '@/lib/duckdb';
+import type { CriteriaFilters } from '@/lib/property-api';
 import {
   listSavedCriteria,
   createSavedCriteria,

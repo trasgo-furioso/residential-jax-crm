@@ -1,6 +1,6 @@
 'use client';
 
-import type { CriteriaFilters } from '@/lib/duckdb';
+import type { CriteriaFilters } from '@/lib/property-api';
 
 /**
  * Lightweight client for saved criteria CRUD via the tRPC HTTP API.

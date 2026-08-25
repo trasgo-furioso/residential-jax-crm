@@ -3,7 +3,7 @@
 import { useRef, useCallback, useState } from 'react';
 import Map, { Source, Layer, NavigationControl } from 'react-map-gl/maplibre';
 import type { MapLayerMouseEvent, MapRef } from 'react-map-gl/maplibre';
-import type { GeoJSONFeatureCollection } from '@/lib/duckdb';
+import type { GeoJSONFeatureCollection } from '@/lib/property-api';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 export interface ViewportBounds {
