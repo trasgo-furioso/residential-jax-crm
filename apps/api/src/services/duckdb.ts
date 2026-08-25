@@ -143,7 +143,8 @@ export interface PropertyRow {
 export async function queryProperties(): Promise<PropertyRow[]> {
   const ready = await ensureInitialized();
   if (!ready) return [];
-  return runQuery<PropertyRow>('SELECT * FROM properties');
+  // Limit results to prevent memory exhaustion at 400k+ records
+  return runQuery<PropertyRow>('SELECT * FROM properties LIMIT 5000');
 }
 
 export interface PropertyFilters {
@@ -246,7 +247,8 @@ export async function queryPropertiesByCriteria(filters: PropertyFilters): Promi
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-  const sql = `SELECT * FROM properties ${where}`;
+  // Limit results to prevent memory exhaustion at 400k+ records
+  const sql = `SELECT * FROM properties ${where} LIMIT 1000`;
 
   return runQuery<PropertyRow>(sql, params);
 }

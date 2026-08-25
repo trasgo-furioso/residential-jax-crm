@@ -197,7 +197,8 @@ export interface GeoJSONFeatureCollection {
 export async function queryProperties(): Promise<GeoJSONFeatureCollection> {
   const conn = await ensureView();
   if (!conn) return { type: 'FeatureCollection', features: [] };
-  const result = await conn.query('SELECT * FROM properties');
+  // Limit client-side results to prevent browser memory exhaustion at 400k+ records
+  const result = await conn.query('SELECT * FROM properties LIMIT 5000');
   const rows = result.toArray().map((row: Record<string, unknown>) => ({ ...row }));
 
   const features: GeoJSONFeature[] = rows.map((row) => {
@@ -357,7 +358,8 @@ export async function queryPropertiesByCriteria(
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-  const sql = `SELECT * FROM properties ${where}`;
+  // Limit client-side results to prevent browser memory exhaustion at 400k+ records
+  const sql = `SELECT * FROM properties ${where} LIMIT 1000`;
   const result = await conn.query(sql);
   const rows = result.toArray().map((row: Record<string, unknown>) => ({ ...row }));
 

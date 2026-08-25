@@ -216,7 +216,7 @@ export default function PropertyList({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 14, fontWeight: 600, color: '#1f2937' }}>
-            Properties ({properties.length.toLocaleString()} total)
+            Properties ({properties.length.toLocaleString()}{properties.length >= 5000 ? ' of ~380k total' : ' total'})
           </span>
           <button
             onClick={handleExport}
@@ -271,6 +271,21 @@ export default function PropertyList({
           </div>
         )}
       </div>
+
+      {/* Limit notice */}
+      {properties.length >= 5000 && (
+        <div
+          style={{
+            padding: '6px 16px',
+            fontSize: 12,
+            color: '#92400e',
+            backgroundColor: '#fffbeb',
+            borderBottom: '1px solid #fde68a',
+          }}
+        >
+          Showing first 5,000 properties. Use filters to narrow results.
+        </div>
+      )}
 
       {/* Table */}
       <div style={{ flex: 1, overflowY: 'auto' }}>

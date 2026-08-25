@@ -30,9 +30,10 @@ export const propertiesRouter = router({
   getById: publicProcedure
     .input(z.object({ parcel_id: z.string() }))
     .query(async ({ input }) => {
-      const allRows = await queryProperties();
-      const match = allRows.find((r) => r.parcel_id === input.parcel_id);
-      return match ?? null;
+      const { queryPropertiesWithWhere } = await import('@/services/duckdb.js');
+      const safeId = input.parcel_id.replace(/'/g, "''");
+      const rows = await queryPropertiesWithWhere(`parcel_id = '${safeId}'`, 1);
+      return rows.length > 0 ? rows[0] : null;
     }),
 
   search: publicProcedure
