@@ -1,295 +1,6 @@
 'use client';
 
-import type * as duckdbWasm from '@duckdb/duckdb-wasm';
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-let _dbInstance: duckdbWasm.AsyncDuckDB | null = null;
-let connInstance: duckdbWasm.AsyncDuckDBConnection | null = null;
-let initPromise: Promise<duckdbWasm.AsyncDuckDBConnection> | null = null;
-let resolvedParquetUrl: string | null = null;
-let ipnsResolveTimestamp = 0;
-const IPNS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const LOCALSTORAGE_CACHE_KEY = 'elephant-ipns-cache';
-const LOCALSTORAGE_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
-
-interface LocalStorageIpnsCache {
-  url: string;
-  timestamp: number;
-}
-
-/** Read IPNS URL from localStorage if valid and not expired. */
-function readLocalStorageCache(): string | null {
-  try {
-    if (typeof window === 'undefined') return null;
-    const raw = localStorage.getItem(LOCALSTORAGE_CACHE_KEY);
-    if (!raw) return null;
-    const parsed: LocalStorageIpnsCache = JSON.parse(raw);
-    if (parsed.url && Date.now() - parsed.timestamp < LOCALSTORAGE_CACHE_TTL_MS) {
-      return parsed.url;
-    }
-  } catch {
-    // localStorage unavailable or corrupted — ignore
-  }
-  return null;
-}
-
-/** Write IPNS URL to localStorage cache. */
-function writeLocalStorageCache(url: string): void {
-  try {
-    if (typeof window === 'undefined') return;
-    const entry: LocalStorageIpnsCache = { url, timestamp: Date.now() };
-    localStorage.setItem(LOCALSTORAGE_CACHE_KEY, JSON.stringify(entry));
-  } catch {
-    // localStorage unavailable — ignore
-  }
-}
-
-interface IndexJson {
-  query_table_cid?: string;
-  query_table_url?: string;
-  [key: string]: unknown;
-}
-
-/**
- * Guard: ensure a URL is safe for data fetching (not the CRM's own domain or
- * an unexpected domain that could hijack navigation).
- * Only allow IPFS gateways, Filebase, and known API domains.
- */
-function isSafeDataUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    const safeHosts = [
-      'ipfs.filebase.io',
-      's3.filebase.io',
-      'cloudflare-ipfs.com',
-      'gateway.pinata.cloud',
-      'dweb.link',
-    ];
-    return safeHosts.some((h) => parsed.hostname === h || parsed.hostname.endsWith(`.${h}`));
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Resolve IPNS key to fetch index.json, extract query_table_url or query_table_cid.
- * Caches the result in memory (5 min) and localStorage (30 min).
- * Returns { url, fromCache } where fromCache=true means the URL came from localStorage
- * (and therefore HEAD validation can be skipped).
- */
-async function resolveParquetUrl(): Promise<{ url: string; fromCache: boolean } | null> {
-  const ipnsKey = process.env.NEXT_PUBLIC_IPNS_QUERY_TABLE;
-  if (!ipnsKey || ipnsKey === 'placeholder') {
-    console.warn('[duckdb] NEXT_PUBLIC_IPNS_QUERY_TABLE not set or placeholder');
-    return null;
-  }
-
-  const now = Date.now();
-
-  // Layer 1: in-memory cache (fastest)
-  if (resolvedParquetUrl && now - ipnsResolveTimestamp < IPNS_CACHE_TTL_MS) {
-    return { url: resolvedParquetUrl, fromCache: true };
-  }
-
-  // Layer 2: localStorage cache (survives page refresh, 30 min TTL)
-  const cachedUrl = readLocalStorageCache();
-  if (cachedUrl && isSafeDataUrl(cachedUrl)) {
-    resolvedParquetUrl = cachedUrl;
-    ipnsResolveTimestamp = now;
-    console.info('[duckdb] Parquet URL from localStorage cache:', cachedUrl);
-    return { url: cachedUrl, fromCache: true };
-  }
-
-  // Layer 3: network resolution (primary API, then IPNS gateway fallback)
-
-  // Primary: fetch from tRPC API which resolves IPNS server-side (fast, no browser gateway timeout)
-  try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-    if (apiUrl) {
-      console.info('[duckdb] Resolving IPNS via API...');
-      const response = await fetch(`${apiUrl}/properties.getQueryTableUrl`, {
-        signal: AbortSignal.timeout(10_000),
-        redirect: 'error', // prevent following redirects to unexpected domains
-      });
-      if (response.ok) {
-        const data = await response.json();
-        const url = data?.result?.data?.url;
-        if (url && isSafeDataUrl(url)) {
-          resolvedParquetUrl = url;
-          ipnsResolveTimestamp = now;
-          writeLocalStorageCache(url);
-          console.info('[duckdb] Parquet URL from API:', url);
-          return { url, fromCache: false };
-        }
-        if (url) {
-          console.warn('[duckdb] API returned unsafe Parquet URL, ignoring:', url);
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('[duckdb] API resolution failed, trying IPNS gateway fallback:', err instanceof Error ? err.message : err);
-  }
-
-  // Fallback: direct IPNS gateway resolution (slow from browsers, 3s timeout)
-  try {
-    console.info('[duckdb] Falling back to IPNS gateway:', ipnsKey);
-    const indexUrl = `https://ipfs.filebase.io/ipns/${ipnsKey}`;
-    const response = await fetch(indexUrl, {
-      signal: AbortSignal.timeout(3_000),
-      redirect: 'error', // prevent following redirects to unexpected domains
-    });
-    if (!response.ok) {
-      console.warn(`[duckdb] IPNS fetch failed: ${response.status}`);
-    } else {
-      const index: IndexJson = (await response.json()) as IndexJson;
-      console.info('[duckdb] Index resolved:', JSON.stringify(index));
-
-      let url: string | null = null;
-      if (index.query_table_url) {
-        url = index.query_table_url;
-      } else if (index.query_table_cid) {
-        url = `https://ipfs.filebase.io/ipfs/${index.query_table_cid}`;
-      }
-
-      if (url && isSafeDataUrl(url)) {
-        resolvedParquetUrl = url;
-        ipnsResolveTimestamp = now;
-        writeLocalStorageCache(url);
-        console.info('[duckdb] Parquet URL from IPNS fallback:', url);
-        return { url, fromCache: false };
-      }
-      if (url) {
-        console.warn('[duckdb] IPNS returned unsafe Parquet URL, ignoring:', url);
-      } else {
-        console.warn('[duckdb] index.json missing query_table_cid and query_table_url');
-      }
-    }
-  } catch (err) {
-    console.warn('[duckdb] IPNS gateway fallback also failed:', err instanceof Error ? err.message : err);
-  }
-
-  return resolvedParquetUrl ? { url: resolvedParquetUrl, fromCache: true } : null;
-}
-
-async function initDuckDB(): Promise<duckdbWasm.AsyncDuckDBConnection> {
-  if (connInstance) return connInstance;
-
-  // Dynamic import to avoid SSR issues with WASM
-  const duckdb = await import('@duckdb/duckdb-wasm');
-
-  const logger = new duckdb.ConsoleLogger();
-
-  // Use jsdelivr bundles but construct worker via Blob URL to avoid CORS
-  const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
-  const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
-
-  // Fetch the worker script as text and create a same-origin Blob URL
-  const workerScriptResponse = await fetch(bundle.mainWorker!);
-  const workerScriptText = await workerScriptResponse.text();
-  const workerBlob = new Blob([workerScriptText], { type: 'application/javascript' });
-  const workerUrl = URL.createObjectURL(workerBlob);
-  const worker = new Worker(workerUrl);
-
-  const db = new duckdb.AsyncDuckDB(logger, worker);
-
-  await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-
-  _dbInstance = db;
-  connInstance = await db.connect();
-
-  // Load httpfs for remote Parquet access
-  await connInstance.query("INSTALL httpfs; LOAD httpfs;");
-
-  return connInstance;
-}
-
-/**
- * Pre-flight check: send a HEAD request to the Parquet URL and verify that
- * the final (post-redirect) URL is still on an allowed IPFS gateway host AND
- * the response Content-Type is NOT text/html.  This catches the scenario where
- * an IPFS gateway 3xx-redirects to CloudFront, which serves an HTML page that
- * causes DuckDB-WASM's httpfs to trigger a top-level navigation.
- *
- * Returns the validated URL (which may be the redirect target) or null.
- */
-async function validateParquetUrl(url: string): Promise<string | null> {
-  try {
-    const resp = await fetch(url, {
-      method: 'HEAD',
-      signal: AbortSignal.timeout(8_000),
-      // allow redirects so we can inspect the final URL
-    });
-
-    // Check the final URL after redirects
-    const finalUrl = resp.url || url;
-    if (!isSafeDataUrl(finalUrl)) {
-      console.error('[duckdb] Parquet URL redirected to unsafe host, blocking:', finalUrl);
-      return null;
-    }
-
-    // Check Content-Type — HTML means the gateway returned an error page
-    const ct = resp.headers.get('content-type') ?? '';
-    if (ct.includes('text/html')) {
-      console.error('[duckdb] Parquet URL returned text/html (likely gateway error page), blocking:', finalUrl);
-      return null;
-    }
-
-    return finalUrl;
-  } catch (err) {
-    console.warn('[duckdb] Pre-flight validation failed, using original URL cautiously:', err instanceof Error ? err.message : err);
-    // If the HEAD request itself fails (network error, timeout), still allow
-    // DuckDB to try — the query will fail safely with an error, not a redirect.
-    return url;
-  }
-}
-
-/**
- * Ensure DuckDB is initialized and the Parquet URL is resolved.
- * Runs DuckDB WASM init and IPNS resolution in parallel for faster startup.
- * Does NOT create a VIEW — queries use read_parquet() directly with LIMIT
- * so DuckDB-WASM can leverage HTTP range requests (lazy loading).
- */
-export async function ensureReady(): Promise<{ conn: duckdbWasm.AsyncDuckDBConnection; url: string } | null> {
-  // Run DuckDB init and IPNS resolution in parallel — they are independent
-  const [resolved, conn] = await Promise.all([
-    resolveParquetUrl(),
-    getConnection(),
-  ]);
-
-  if (!resolved) {
-    console.warn('[duckdb] Could not resolve query table URL from IPNS — returning empty data');
-    return null;
-  }
-
-  const { url, fromCache } = resolved;
-
-  // Skip HEAD validation if the URL came from a trusted cache (localStorage or memory).
-  // Only validate freshly-resolved URLs to avoid the ~800ms HEAD request on every load.
-  let validatedUrl: string | null;
-  if (fromCache) {
-    console.info('[duckdb] Skipping HEAD validation for cached URL');
-    validatedUrl = url;
-  } else {
-    validatedUrl = await validateParquetUrl(url);
-  }
-
-  if (!validatedUrl) {
-    console.error('[duckdb] Parquet URL failed validation — returning empty data to prevent redirect');
-    // Clear the cached URL so next attempt re-resolves from IPNS
-    resolvedParquetUrl = null;
-    ipnsResolveTimestamp = 0;
-    return null;
-  }
-
-  return { conn, url: validatedUrl };
-}
-
-async function getConnection(): Promise<duckdbWasm.AsyncDuckDBConnection> {
-  if (!initPromise) {
-    initPromise = initDuckDB();
-  }
-  return initPromise;
-}
+const PIPELINE_API = process.env.NEXT_PUBLIC_PIPELINE_API_URL ?? 'https://d5sfa8vgu8mcx.cloudfront.net';
 
 export interface GeoJSONFeature {
   type: 'Feature';
@@ -305,81 +16,7 @@ export interface GeoJSONFeatureCollection {
   features: GeoJSONFeature[];
 }
 
-/**
- * Query all properties and return as GeoJSON FeatureCollection for MapLibre.
- */
-export async function queryProperties(): Promise<GeoJSONFeatureCollection> {
-  const ready = await ensureReady();
-  if (!ready) return { type: 'FeatureCollection', features: [] };
-  const { conn, url } = ready;
-  // Query read_parquet() directly — DuckDB-WASM uses HTTP range requests to
-  // fetch only the Parquet footer + needed row groups, NOT the entire file.
-  const result = await conn.query(`SELECT *, street AS address_street FROM read_parquet('${url}') WHERE lat IS NOT NULL AND lng IS NOT NULL LIMIT 1000`);
-  const rows = result.toArray().map((row: Record<string, unknown>) => ({ ...row }));
-
-  const features: GeoJSONFeature[] = rows.map((row) => {
-    const { lat, lng, ...rest } = row as Record<string, unknown> & { lat: number; lng: number };
-    return {
-      type: 'Feature' as const,
-      geometry: {
-        type: 'Point' as const,
-        coordinates: [lng, lat],
-      },
-      properties: rest,
-    };
-  });
-
-  return {
-    type: 'FeatureCollection',
-    features,
-  };
-}
-
-/**
- * Query a single property by parcel_id for the detail view.
- */
-export async function queryPropertyByParcelId(
-  parcelId: string,
-): Promise<Record<string, unknown> | null> {
-  const ready = await ensureReady();
-  if (!ready) return null;
-  const { conn, url } = ready;
-  const result = await conn.query(`SELECT *, street AS address_street FROM read_parquet('${url}') WHERE parcel_id = '${parcelId.replace(/'/g, "''")}'`);
-  const rows = result.toArray().map((row: Record<string, unknown>) => ({ ...row }));
-  return rows.length > 0 ? rows[0] : null;
-}
-
-/**
- * Query properties within geographic bounds (viewport) and return as GeoJSON.
- */
-export async function queryPropertiesByBounds(
-  bounds: { north: number; south: number; east: number; west: number },
-  limit = 1000,
-): Promise<GeoJSONFeatureCollection> {
-  const ready = await ensureReady();
-  if (!ready) return { type: 'FeatureCollection', features: [] };
-  const { conn, url } = ready;
-
-  const sql = `SELECT *, street AS address_street FROM read_parquet('${url}') WHERE lat BETWEEN ${bounds.south} AND ${bounds.north} AND lng BETWEEN ${bounds.west} AND ${bounds.east} LIMIT ${limit}`;
-  const result = await conn.query(sql);
-  const rows = result.toArray().map((row: Record<string, unknown>) => ({ ...row }));
-
-  const features: GeoJSONFeature[] = rows.map((row) => {
-    const { lat, lng, ...rest } = row as Record<string, unknown> & { lat: number; lng: number };
-    return {
-      type: 'Feature' as const,
-      geometry: {
-        type: 'Point' as const,
-        coordinates: [lng, lat],
-      },
-      properties: rest,
-    };
-  });
-
-  return { type: 'FeatureCollection', features };
-}
-
-// ── Criteria-based search (client-side DuckDB) ────────────────────────────
+// ── Criteria-based search ────────────────────────────────────────────────────
 
 export interface CriteriaFilters {
   ownership_tenure_min_years?: number;
@@ -468,66 +105,107 @@ export function evaluateMatch(
   return { score, total, percentage, breakdown };
 }
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Convert pipeline API response to GeoJSON FeatureCollection. */
+function propertiesToGeoJSON(properties: Record<string, unknown>[]): GeoJSONFeatureCollection {
+  const features: GeoJSONFeature[] = properties
+    .filter((p) => p.lat != null && p.lng != null)
+    .map((p) => ({
+      type: 'Feature' as const,
+      geometry: {
+        type: 'Point' as const,
+        coordinates: [p.lng as number, p.lat as number],
+      },
+      properties: {
+        ...p,
+        address_street: p.full_address ?? p.address_street ?? '',
+        address_city: 'Jacksonville',
+        address_zip: p.address_zip ?? '',
+      },
+    }));
+  return { type: 'FeatureCollection', features };
+}
+
+// ── Public API (drop-in replacements for DuckDB-WASM queries) ───────────────
+
 /**
- * Query properties filtered by criteria using client-side DuckDB,
- * then score each result against the criteria.
- * Returns GeoJSON FeatureCollection with match scores in properties.
+ * No-op — pipeline API is always ready. Kept for backwards compatibility.
+ */
+export async function ensureReady(): Promise<unknown> {
+  return {};
+}
+
+/**
+ * Query all properties (default Jacksonville viewport) as GeoJSON.
+ */
+export async function queryProperties(): Promise<GeoJSONFeatureCollection> {
+  const res = await fetch(`${PIPELINE_API}/api/properties/viewport?lat_min=30.0&lat_max=30.6&lng_min=-82.0&lng_max=-81.0&limit=1000`);
+  if (!res.ok) return { type: 'FeatureCollection', features: [] };
+  const data = await res.json();
+  return propertiesToGeoJSON(data.properties ?? []);
+}
+
+/**
+ * Query properties within geographic bounds (viewport) as GeoJSON.
+ */
+export async function queryPropertiesByBounds(
+  bounds: { north: number; south: number; east: number; west: number },
+  limit = 1000,
+): Promise<GeoJSONFeatureCollection> {
+  const params = new URLSearchParams({
+    lat_min: bounds.south.toString(),
+    lat_max: bounds.north.toString(),
+    lng_min: bounds.west.toString(),
+    lng_max: bounds.east.toString(),
+    limit: limit.toString(),
+  });
+  const res = await fetch(`${PIPELINE_API}/api/properties/viewport?${params}`);
+  if (!res.ok) return { type: 'FeatureCollection', features: [] };
+  const data = await res.json();
+  return propertiesToGeoJSON(data.properties ?? []);
+}
+
+/**
+ * Query a single property by parcel_id for the detail view.
+ */
+export async function queryPropertyByParcelId(parcelId: string): Promise<Record<string, unknown> | null> {
+  const res = await fetch(`${PIPELINE_API}/api/properties/${encodeURIComponent(parcelId)}`);
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.property ?? null;
+}
+
+/**
+ * Query properties filtered by criteria, score each result, return sorted GeoJSON.
  */
 export async function queryPropertiesByCriteria(
   filters: CriteriaFilters,
 ): Promise<GeoJSONFeatureCollection> {
-  const ready = await ensureReady();
-  if (!ready) return { type: 'FeatureCollection', features: [] };
-  const { conn, url } = ready;
+  const params = new URLSearchParams();
+  if (filters.roof_age_min_years != null) params.set('roof_age_min', filters.roof_age_min_years.toString());
+  if (filters.ownership_tenure_min_years != null) params.set('ownership_min', filters.ownership_tenure_min_years.toString());
+  if (filters.assessed_value_min != null) params.set('value_min', filters.assessed_value_min.toString());
+  if (filters.assessed_value_max != null) params.set('value_max', filters.assessed_value_max.toString());
+  if (filters.zip_codes?.length) params.set('zip', filters.zip_codes.join(','));
+  if (filters.is_regional_owner) params.set('regional_owner', 'true');
+  if (filters.water_proximity_max_ft != null) params.set('water_proximity', 'true');
+  params.set('limit', '1000');
 
-  const conditions: string[] = [];
+  const res = await fetch(`${PIPELINE_API}/api/properties/filter?${params}`);
+  if (!res.ok) return { type: 'FeatureCollection', features: [] };
+  const data = await res.json();
+  const geojson = propertiesToGeoJSON(data.properties ?? []);
 
-  if (filters.ownership_tenure_min_years != null) {
-    conditions.push(`ownership_tenure_years >= ${Number(filters.ownership_tenure_min_years)}`);
-  }
-  if (filters.roof_age_min_years != null) {
-    conditions.push(`roof_age_years >= ${Number(filters.roof_age_min_years)}`);
-  }
-  if (filters.zip_codes != null && filters.zip_codes.length > 0) {
-    const escaped = filters.zip_codes.map((z) => `'${z.replace(/'/g, "''")}'`).join(', ');
-    conditions.push(`address_zip IN (${escaped})`);
-  }
-  if (filters.assessed_value_min != null) {
-    conditions.push(`assessed_value >= ${Number(filters.assessed_value_min)}`);
-  }
-  if (filters.assessed_value_max != null) {
-    conditions.push(`assessed_value <= ${Number(filters.assessed_value_max)}`);
-  }
-  if (filters.is_regional_owner != null) {
-    conditions.push(`is_regional_owner = ${filters.is_regional_owner}`);
-  }
-  if (filters.water_proximity_max_ft != null) {
-    conditions.push(`water_proximity_ft <= ${Number(filters.water_proximity_max_ft)}`);
-  }
-
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-  // Query read_parquet() directly with LIMIT — lazy loading via HTTP range requests
-  const sql = `SELECT *, street AS address_street FROM read_parquet('${url}') ${where} LIMIT 1000`;
-  const result = await conn.query(sql);
-  const rows = result.toArray().map((row: Record<string, unknown>) => ({ ...row }));
-
-  const features: GeoJSONFeature[] = rows.map((row) => {
-    const { lat, lng, ...rest } = row as Record<string, unknown> & { lat: number; lng: number };
-    const match = evaluateMatch(rest, filters);
+  // Score each property against criteria
+  geojson.features = geojson.features.map((f) => {
+    const match = evaluateMatch(f.properties, filters);
     return {
-      type: 'Feature' as const,
-      geometry: {
-        type: 'Point' as const,
-        coordinates: [lng, lat],
-      },
-      properties: { ...rest, match_score: match.percentage, match_breakdown: match.breakdown },
+      ...f,
+      properties: { ...f.properties, match_score: match.percentage, match_breakdown: match.breakdown },
     };
   });
+  geojson.features.sort((a, b) => (b.properties.match_score as number) - (a.properties.match_score as number));
 
-  // Sort by match score descending
-  features.sort(
-    (a, b) => (b.properties.match_score as number) - (a.properties.match_score as number),
-  );
-
-  return { type: 'FeatureCollection', features };
+  return geojson;
 }

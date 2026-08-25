@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import type { GeoJSONFeatureCollection, CriteriaFilters } from '@/lib/duckdb';
 import type { ViewportBounds } from '@/components/map/PropertyMap';
@@ -143,9 +143,7 @@ export default function Dashboard() {
   const [selectedParcelId, setSelectedParcelId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('split');
   const [loading, setLoading] = useState(false);
-  const [duckdbReady, setDuckdbReady] = useState(false);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
-  const pendingBoundsRef = useRef<ViewportBounds | null>(null);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeFilters, setActiveFilters] = useState<CriteriaFilters | null>(null);
@@ -180,47 +178,11 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Pre-initialize DuckDB + resolve Parquet URL in background (no query yet)
-  useEffect(() => {
-    let cancelled = false;
-
-    async function preInit() {
-      try {
-        const { ensureReady } = await import('@/lib/duckdb');
-        await ensureReady();
-        if (cancelled) return;
-        setDuckdbReady(true);
-        // If map already loaded and queued bounds, fire the initial query now
-        if (pendingBoundsRef.current) {
-          const bounds = pendingBoundsRef.current;
-          pendingBoundsRef.current = null;
-          await loadInitialBounds(bounds);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          console.warn('DuckDB pre-init failed, will retry on first query:', err);
-        }
-      }
-    }
-
-    preInit();
-    return () => {
-      cancelled = true;
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // Called when MapLibre fires onLoad with initial viewport bounds
   const handleMapLoad = useCallback(async (bounds: ViewportBounds) => {
-    if (initialLoadDone) return; // already loaded
-    if (duckdbReady) {
-      await loadInitialBounds(bounds);
-    } else {
-      // DuckDB not ready yet — stash bounds so pre-init can pick them up
-      pendingBoundsRef.current = bounds;
-      setLoading(true); // show inline loading indicator
-    }
-  }, [duckdbReady, initialLoadDone, loadInitialBounds]);
+    if (initialLoadDone) return;
+    await loadInitialBounds(bounds);
+  }, [initialLoadDone, loadInitialBounds]);
 
   const handlePropertySelect = useCallback((parcelId: string) => {
     setSelectedParcelId((prev) => (prev === parcelId ? null : parcelId));
