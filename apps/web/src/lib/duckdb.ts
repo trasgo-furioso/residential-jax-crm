@@ -6,7 +6,6 @@ import type * as duckdbWasm from '@duckdb/duckdb-wasm';
 let _dbInstance: duckdbWasm.AsyncDuckDB | null = null;
 let connInstance: duckdbWasm.AsyncDuckDBConnection | null = null;
 let initPromise: Promise<duckdbWasm.AsyncDuckDBConnection> | null = null;
-let viewCreated = false;
 let resolvedParquetUrl: string | null = null;
 let ipnsResolveTimestamp = 0;
 const IPNS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -153,21 +152,19 @@ async function initDuckDB(): Promise<duckdbWasm.AsyncDuckDBConnection> {
   return connInstance;
 }
 
-async function ensureView(): Promise<duckdbWasm.AsyncDuckDBConnection | null> {
+/**
+ * Ensure DuckDB is initialized and the Parquet URL is resolved.
+ * Does NOT create a VIEW — queries use read_parquet() directly with LIMIT
+ * so DuckDB-WASM can leverage HTTP range requests (lazy loading).
+ */
+async function ensureReady(): Promise<{ conn: duckdbWasm.AsyncDuckDBConnection; url: string } | null> {
   const url = await resolveParquetUrl();
   if (!url) {
     console.warn('[duckdb] Could not resolve query table URL from IPNS — returning empty data');
     return null;
   }
   const conn = await getConnection();
-  if (!viewCreated) {
-    await conn.query(`
-      CREATE OR REPLACE VIEW properties AS
-      SELECT *, street AS address_street FROM read_parquet('${url}');
-    `);
-    viewCreated = true;
-  }
-  return conn;
+  return { conn, url };
 }
 
 async function getConnection(): Promise<duckdbWasm.AsyncDuckDBConnection> {
@@ -195,10 +192,12 @@ export interface GeoJSONFeatureCollection {
  * Query all properties and return as GeoJSON FeatureCollection for MapLibre.
  */
 export async function queryProperties(): Promise<GeoJSONFeatureCollection> {
-  const conn = await ensureView();
-  if (!conn) return { type: 'FeatureCollection', features: [] };
-  // Limit client-side results to prevent browser memory exhaustion at 400k+ records
-  const result = await conn.query('SELECT * FROM properties LIMIT 5000');
+  const ready = await ensureReady();
+  if (!ready) return { type: 'FeatureCollection', features: [] };
+  const { conn, url } = ready;
+  // Query read_parquet() directly — DuckDB-WASM uses HTTP range requests to
+  // fetch only the Parquet footer + needed row groups, NOT the entire file.
+  const result = await conn.query(`SELECT *, street AS address_street FROM read_parquet('${url}') LIMIT 5000`);
   const rows = result.toArray().map((row: Record<string, unknown>) => ({ ...row }));
 
   const features: GeoJSONFeature[] = rows.map((row) => {
@@ -225,9 +224,10 @@ export async function queryProperties(): Promise<GeoJSONFeatureCollection> {
 export async function queryPropertyByParcelId(
   parcelId: string,
 ): Promise<Record<string, unknown> | null> {
-  const conn = await ensureView();
-  if (!conn) return null;
-  const result = await conn.query(`SELECT * FROM properties WHERE parcel_id = '${parcelId.replace(/'/g, "''")}'`);
+  const ready = await ensureReady();
+  if (!ready) return null;
+  const { conn, url } = ready;
+  const result = await conn.query(`SELECT *, street AS address_street FROM read_parquet('${url}') WHERE parcel_id = '${parcelId.replace(/'/g, "''")}'`);
   const rows = result.toArray().map((row: Record<string, unknown>) => ({ ...row }));
   return rows.length > 0 ? rows[0] : null;
 }
@@ -329,8 +329,9 @@ export function evaluateMatch(
 export async function queryPropertiesByCriteria(
   filters: CriteriaFilters,
 ): Promise<GeoJSONFeatureCollection> {
-  const conn = await ensureView();
-  if (!conn) return { type: 'FeatureCollection', features: [] };
+  const ready = await ensureReady();
+  if (!ready) return { type: 'FeatureCollection', features: [] };
+  const { conn, url } = ready;
 
   const conditions: string[] = [];
 
@@ -358,8 +359,8 @@ export async function queryPropertiesByCriteria(
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-  // Limit client-side results to prevent browser memory exhaustion at 400k+ records
-  const sql = `SELECT * FROM properties ${where} LIMIT 1000`;
+  // Query read_parquet() directly with LIMIT — lazy loading via HTTP range requests
+  const sql = `SELECT *, street AS address_street FROM read_parquet('${url}') ${where} LIMIT 1000`;
   const result = await conn.query(sql);
   const rows = result.toArray().map((row: Record<string, unknown>) => ({ ...row }));
 
